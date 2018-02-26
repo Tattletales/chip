@@ -6,7 +6,7 @@ scalaVersion := "2.12.4"
 
 scalacOptions += "-Ypartial-unification"
 
-wartremoverErrors ++= Warts.unsafe
+wartremoverWarnings ++= Warts.unsafe
 
 libraryDependencies += "org.typelevel" %% "cats-core" % "1.0.1"
 libraryDependencies ++= Seq("com.chuusai" %% "shapeless" % "2.3.3")
