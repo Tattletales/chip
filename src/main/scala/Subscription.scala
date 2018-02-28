@@ -9,34 +9,33 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import cats.effect.IO
 import fs2.Stream
-import monix.eval.Task
 import streamz.converter._
 
 import scala.concurrent.ExecutionContext
 
-trait Subscribtion[F[_], Event] {
+trait Subscription[F[_], Event] {
   def subscribe(uri: String): F[Stream[IO, Event]]
 }
 
-object Subscribtion extends SubscribtionInstances {
+object Subscription extends SubscriptionInstances {
   def apply[F[_], Event](
-      implicit S: Subscribtion[F, Event]): Subscribtion[F, Event] = S
+      implicit S: Subscription[F, Event]): Subscription[F, Event] = S
 }
 
-sealed abstract class SubscribtionInstances {
-  implicit def akkaSubscribtion[Event](
-      decoder: String => Event): Subscribtion[Task, Event] =
-    new Subscribtion[Task, Event] {
+sealed abstract class SubscriptionInstances {
+  implicit def akkaSubscription[Event](
+      decoder: String => Event): Subscription[IO, Event] =
+    new Subscription[IO, Event] {
       implicit val system: ActorSystem = ActorSystem()
       implicit val materializer: ActorMaterializer = ActorMaterializer()
       implicit val executionContext: ExecutionContext = system.dispatcher
 
-      def subscribe(uri: String): Task[Stream[IO, Event]] = Task.defer {
-        val future = Http()
-          .singleRequest(HttpRequest(uri = uri))
-          .flatMap(Unmarshal(_).to[Source[ServerSentEvent, NotUsed]])
-          .map(_.toStream().map(e => decoder(e.data)))
-        Task.fromFuture(future)
+      def subscribe(uri: String): IO[Stream[IO, Event]] = IO.fromFuture {
+        IO(
+          Http()
+            .singleRequest(HttpRequest(uri = uri))
+            .flatMap(Unmarshal(_).to[Source[ServerSentEvent, NotUsed]])
+            .map(_.toStream().map(e => decoder(e.data))))
       }
     }
 }
