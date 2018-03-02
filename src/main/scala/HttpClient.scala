@@ -1,13 +1,15 @@
-import cats.effect.Effect
-import fs2.Stream
-import io.circe.Decoder
+import cats.effect._
+import cats.implicits._
+import fs2.Stream._
 import org.http4s._
-import org.http4s.circe._
-import org.http4s.client.blaze._
+import org.http4s.dsl.io._
+import org.http4s.client._
+import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
+import org.http4s.client.dsl.Http4sClientDsl
 
 trait HttpClient[F[_], Request] {
-  def get[Response](request: Request): F[Response]
-  def put[Response, T](request: Request, put: T): F[Response]
+  def get[Response](request: Request): F[Option[Response]]
+  def put[T](request: Request, put: T): F[Unit]
 }
 
 object HttpClient extends HttpClientInstances {
@@ -16,22 +18,21 @@ object HttpClient extends HttpClientInstances {
 }
 
 sealed abstract class HttpClientInstances {
-  type Http[F[_], R] = Stream[F, F[R]]
+  implicit def http4sClient: HttpClient[IO, String] =
+    new HttpClient[IO, String] {
+      private[this] val client =
+        Http1Client.stream[IO](BlazeClientConfig.defaultConfig)
 
-  implicit def http4sClient[F[_]: Effect]: HttpClient[Http[F, ?], String] =
-    new HttpClient[Http[F, ?], String] {
-      private[this] val safeClient =
-        Http1Client.stream[F](BlazeClientConfig.defaultConfig)
-
-      def get[Response: Decoder](request: String): Http[F, Response] = {
-        val req: Request[F] = ???
-        safeClient.map(r => r.expect(req)(jsonOf[F, Response]))
+      def get[Response](request: String): IO[Option[Response]] = {
+        client
+          .map(_.expect[Response](uri(request)))
+          .compile
+          .last
+          .flatMap(_.sequence[IO, Response])
+        
+        Http4sClientDsl
       }
 
-      def put[Response: Decoder, T](request: String, put: T): Http[F, Response] = {
-        val req: Request[F] = ???
-        safeClient.map(r => r.expect(req)(jsonOf[F, Response]))
-      }
-
+      def put[T](request: String, put: T): IO[Unit] = ???
     }
 }
