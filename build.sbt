@@ -50,6 +50,10 @@ libraryDependencies ++= Seq(
 
 libraryDependencies += "com.github.krasserm" %% "streamz-converter" % "0.9"
 
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+
+libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.12.0"
+
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
 addCompilerPlugin(
   "org.scalameta" % "paradise" % "3.0.0-M10" cross CrossVersion.full)

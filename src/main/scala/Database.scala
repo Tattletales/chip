@@ -32,8 +32,10 @@ sealed abstract class DatabaseInstances {
           case doobie.postgres.sqlstate.class23.UNIQUE_VIOLATION => "Coucou"
         }.map(_.toOption)
 
-      def exists(q: String): ConnectionIO[Boolean] = ???
+      def exists(q: String): ConnectionIO[Boolean] =
+        sql"$q".query[Int].unique.map(_ > 0)
 
       def remove(q: String): ConnectionIO[Unit] = ???
+
     }
 }
