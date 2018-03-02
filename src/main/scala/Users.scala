@@ -1,3 +1,4 @@
+import UsersActions._
 import cats.Monad
 import cats.data.OptionT
 import cats.implicits._
@@ -13,24 +14,43 @@ object Users extends UsersInstances {
 }
 
 sealed abstract class UsersInstances {
-  implicit def syncedUsers[F[_]: Monad, User, ](
+  implicit def syncedUsers[F[_]: Monad, User](
       db: Database[F, String],
-      client: HttpClient[F, String]): Users[F, User] = new Users[F, User] {
-    def addUser(name: String, password: String): F[Option[User]] =
-      (for {
-        user <- OptionT(
-          db.insertAndGet[User](
-            s"""
+      distributor: Distributor[F, UsersAction]): Users[F, User] =
+    new Users[F, User] {
+      def addUser(name: String, password: String): F[Option[User]] =
+        (for {
+          user <- OptionT(
+            db.insertAndGet[User](
+              s"""
            |INSERT INTO users (name, password)
            |VALUES ($name, $password)
        """.stripMargin,
-            Seq("id", "user", "password"): _*))
+              Seq("id", "user", "password"): _*))
 
-        _ <- client.post(???, ???)
-      } yield user).value
+          _ <- distributor.share(AddUser(name, password))
+        } yield user).value
 
-    def removeUser(user: User): F[Unit] = ???
+      def removeUser(user: User): F[Unit] =
+        for {
+          _ <- db.remove(s"""
+           |DELETE FROM users
+           |WHERE ???
+         """.stripMargin)
 
-    def searchUser(name: String): F[List[User]] = db.query[User](???)
-  }
+          _ <- distributor.share(RemoveUser(user))
+        } yield ()
+
+      def searchUser(name: String): F[List[User]] = db.query[User](s"""
+         |SELECT *
+         |FROM users
+         |WHERE name = $name
+       """.stripMargin)
+    }
+}
+
+object UsersActions {
+  sealed trait UsersAction
+  case class AddUser(name: String, password: String) extends UsersAction
+  case class RemoveUser[User](user: User) extends UsersAction
 }
