@@ -9,7 +9,7 @@ import org.http4s.client.dsl.Http4sClientDsl
 
 trait HttpClient[F[_], Request] {
   def get[Response](request: Request): F[Option[Response]]
-  def put[T](request: Request, put: T): F[Unit]
+  def post[T](request: Request, put: T): F[Unit]
 }
 
 object HttpClient extends HttpClientInstances {
@@ -33,6 +33,6 @@ sealed abstract class HttpClientInstances {
         Http4sClientDsl
       }
 
-      def put[T](request: String, put: T): IO[Unit] = ???
+      def post[T](request: String, put: T): IO[Unit] = ???
     }
 }
