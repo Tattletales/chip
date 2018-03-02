@@ -13,19 +13,20 @@ import streamz.converter._
 
 import scala.concurrent.ExecutionContext
 
-trait Subscription[F[_], Event] {
-  def subscribe(uri: String): F[Stream[IO, Event]]
+trait SseClient[F[_], Uri, Event] {
+  def subscribe(uri: Uri): F[Stream[IO, Event]]
 }
 
-object Subscription extends SubscriptionInstances {
-  def apply[F[_], Event](
-      implicit S: Subscription[F, Event]): Subscription[F, Event] = S
+object SseClient extends SseClientInstances {
+  def apply[F[_], Uri, Event](
+      implicit S: SseClient[F, Uri, Event]): SseClient[F, Uri, Event] =
+    S
 }
 
-sealed abstract class SubscriptionInstances {
-  implicit def akkaSubscription[Event](
-      decoder: String => Event): Subscription[IO, Event] =
-    new Subscription[IO, Event] {
+sealed abstract class SseClientInstances {
+  implicit def akka[Event](
+      decoder: String => Event): SseClient[IO, String, Event] =
+    new SseClient[IO, String, Event] {
       implicit val system: ActorSystem = ActorSystem()
       implicit val materializer: ActorMaterializer = ActorMaterializer()
       implicit val executionContext: ExecutionContext = system.dispatcher
