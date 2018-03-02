@@ -14,10 +14,11 @@ resolvers += Resolver.sonatypeRepo("snapshots")
 libraryDependencies += "org.typelevel" %% "cats-core" % "1.0.1"
 libraryDependencies += "org.typelevel" %% "cats-effect" % "0.9"
 
-lazy val doobieVersion = "0.5.0"
+lazy val doobieVersion = "0.5.1"
 libraryDependencies ++= Seq(
   "org.tpolecat" %% "doobie-core" % doobieVersion,
-  "org.tpolecat" %% "doobie-specs2" % doobieVersion
+  "org.tpolecat" %% "doobie-specs2" % doobieVersion,
+  "org.tpolecat" %% "doobie-postgres" % doobieVersion
 )
 
 libraryDependencies += "co.fs2" %% "fs2-core" % "0.10.1"
