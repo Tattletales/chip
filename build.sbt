@@ -35,13 +35,18 @@ libraryDependencies ++= Seq(
 //libraryDependencies += "io.monix" %% "monix-types" % "2.3.3"
 //libraryDependencies += "io.monix" %% "monix-cats" % "2.3.3"
 
-
 val circeVersion = "0.9.1"
 
 libraryDependencies ++= Seq(
+  "io.circe" %% "circe-core",
   "io.circe" %% "circe-generic",
-  "io.circe" %% "circe-literal"
+  "io.circe" %% "circe-literal",
+  "io.circe" %% "circe-parser"
 ).map(_ % circeVersion)
+
+libraryDependencies += "io.circe" % "circe-fs2_2.12" % "0.9.0"
+
+libraryDependencies ++= Seq("com.chuusai" %% "shapeless" % "2.3.3")
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http" % "10.1.0-RC2",
@@ -55,5 +60,4 @@ addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.fu
 libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.12.0"
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
-addCompilerPlugin(
-  "org.scalameta" % "paradise" % "3.0.0-M10" cross CrossVersion.full)
+addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M10" cross CrossVersion.full)
