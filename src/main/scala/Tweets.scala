@@ -1,4 +1,4 @@
-import TweetActions.{AddTweet, TweetAction}
+import TweetActions.{AddTweet, TweetsAction}
 import cats.Monad
 import cats.data.OptionT
 import doobie.util.composite.Composite
@@ -14,10 +14,10 @@ object Tweets extends TweetsInstances {
 }
 
 sealed abstract class TweetsInstances {
-  implicit def tweets[F[_]: Monad, User: Userable, Tweet: Tweetable: Composite](
+  implicit def replicated[F[_]: Monad, User: Userable, Tweet: Tweetable: Composite](
     db: Database[Stream[F, ?], String],
-    distributor: Distributor[Stream[F, ?], TweetAction]
-  ) = new Tweets[Stream[F, ?], User, Tweet] {
+    distributor: Distributor[Stream[F, ?], TweetsAction]
+  ): Tweets[Stream[F, ?], User, Tweet] = new Tweets[Stream[F, ?], User, Tweet] {
 
     import Tweetable.ops._
     import Userable.ops._
@@ -43,6 +43,6 @@ sealed abstract class TweetsInstances {
 }
 
 object TweetActions {
-  sealed trait TweetAction
-  case class AddTweet[Tweet](tweet: Tweet) extends TweetAction
+  sealed trait TweetsAction
+  case class AddTweet[Tweet](tweet: Tweet) extends TweetsAction
 }

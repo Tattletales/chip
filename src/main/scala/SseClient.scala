@@ -1,4 +1,4 @@
-import SseClient.Event
+import SseClient.SSEvent
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -16,23 +16,23 @@ import streamz.converter._
 import scala.concurrent.ExecutionContext
 
 trait SseClient[F[_]] {
-  def subscribe(uri: String): F[Event]
+  def subscribe(uri: String): F[SSEvent]
 }
 
 object SseClient extends SseClientInstances {
-  case class Event(event: String, payload: String)
+  case class SSEvent(event: String, payload: String)
 
   def apply[F[_]](implicit S: SseClient[F]): SseClient[F] = S
 }
 
 sealed abstract class SseClientInstances {
-  implicit def akka: SseClient[Stream[IO, ?]] =
+  implicit val akka: SseClient[Stream[IO, ?]] =
     new SseClient[Stream[IO, ?]] {
       implicit val system: ActorSystem = ActorSystem()
       implicit val materializer: ActorMaterializer = ActorMaterializer()
       implicit val executionContext: ExecutionContext = system.dispatcher
 
-      def subscribe(uri: String): Stream[IO, Event] =
+      def subscribe(uri: String): Stream[IO, SSEvent] =
         Stream
           .force(IO.fromFuture {
             IO(for {
@@ -46,10 +46,10 @@ sealed abstract class SseClientInstances {
                 .flatMap(
                   sse =>
                     sse.eventType match {
-                      case Some(eventType) => Stream.emit(Event(eventType, sse.data))
+                      case Some(eventType) => Stream.emit(SSEvent(eventType, sse.data))
                       case None =>
                         Stream
-                          .raiseError[Event](
+                          .raiseError[SSEvent](
                             throw new NoSuchElementException("Missing event-type.")
                           )
                   }

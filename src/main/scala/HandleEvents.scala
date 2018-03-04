@@ -1,5 +1,6 @@
 import HandleEvents.Event
-import UsersActions.AddUser
+import TweetActions.TweetsAction
+import UsersActions.UsersAction
 import cats.Applicative
 import io.circe.fs2._
 import io.circe.{Decoder, Json}
@@ -16,7 +17,7 @@ trait HandleEvents[E] {
 object HandleEvents {
   case class Event(name: String, payload: Json)
 
-  implicit val base: HandleEvents[HNil] = new HandleEvents[HNil] {
+  implicit val baseCase: HandleEvents[HNil] = new HandleEvents[HNil] {
     def handle[F[_], U, T](
       r: Repo[F, U, T]
     )(event: Event)(implicit F: Applicative[F]): Stream[F, Unit] =
@@ -24,9 +25,9 @@ object HandleEvents {
   }
 
   implicit def inductionStep[E, Es <: HList](implicit head: Named[E],
-                                    parser: Decoder[E],
-                                    replicate: Replicable[E],
-                                    tail: HandleEvents[Es]): HandleEvents[E :: Es] =
+                                             parser: Decoder[E],
+                                             replicate: Replicable[E],
+                                             tail: HandleEvents[Es]): HandleEvents[E :: Es] =
     new HandleEvents[E :: Es] {
       def handle[F[_], U, T](
         r: Repo[F, U, T]

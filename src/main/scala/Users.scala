@@ -15,7 +15,7 @@ object Users extends UsersInstances {
 }
 
 sealed abstract class UsersInstances {
-  implicit def syncedUsers[F[_]: Monad, User: Composite](
+  implicit def replicated[F[_]: Monad, User: Composite](
     db: Database[Stream[F, ?], String],
     distributor: Distributor[Stream[F, ?], UsersAction]
   ): Users[Stream[F, ?], User] =
