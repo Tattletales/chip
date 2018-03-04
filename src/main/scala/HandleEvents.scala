@@ -1,34 +1,49 @@
-import Bla.{EOL, dispatcher}
-import Named.AddUser
-import cats.effect.IO
+import HandleEvents.Event
+import UsersActions.AddUser
+import cats.Applicative
+import io.circe.fs2._
 import io.circe.{Decoder, Json}
+import fs2._
+import shapeless.{::, HList, HNil}
 import simulacrum._
 
-@typeclass trait HandleEvents[E] {
-  def dispatch(name: String, payload: Json): IO[Unit]
+trait HandleEvents[E] {
+  def handle[F[_], U, T](r: Repo[F, U, T])(event: Event)(
+    implicit F: Applicative[F]
+  ): Stream[F, Unit]
 }
 
 object HandleEvents {
-  implicit val base: HandleEvents[EOL] = new HandleEvents[EOL] {
-    def dispatch(name: String, payload: Json): IO[Unit] = IO.unit
+  case class Event(name: String, payload: Json)
+
+  implicit val base: HandleEvents[HNil] = new HandleEvents[HNil] {
+    def handle[F[_], U, T](
+      r: Repo[F, U, T]
+    )(event: Event)(implicit F: Applicative[F]): Stream[F, Unit] =
+      Stream.eval(F.pure(()))
   }
 
-  implicit def inductionStep[Event, Tail](
-      implicit head: Named[Event],
-      parser: Decoder[Event],
-      replicate: Replicate[Event],
-      tail: HandleEvents[Tail]): HandleEvents[(Event, Tail)] =
-    new HandleEvents[(Event, Tail)] {
-      def dispatch(name: String, payload: Json): IO[Unit] = {
-        if (name == head.name)
-          parser.decodeJson(payload).map(replicate.doStuff).getOrElse(IO.unit)
-        else tail.dispatch(name, payload)
+  implicit def inductionStep[E, Es <: HList](implicit head: Named[E],
+                                    parser: Decoder[E],
+                                    replicate: Replicable[E],
+                                    tail: HandleEvents[Es]): HandleEvents[E :: Es] =
+    new HandleEvents[E :: Es] {
+      def handle[F[_], U, T](
+        r: Repo[F, U, T]
+      )(event: Event)(implicit F: Applicative[F]): Stream[F, Unit] = {
+        if (event.name == head.name)
+          Stream
+            .emit(event.payload)
+            .covary[F]
+            .through(decoder[F, E])
+            .to(replicate.replicate(r))
+        else tail.handle(r)(event)
       }
     }
 }
 
 @typeclass trait Named[T] {
-  val name: String
+  def name: String
 }
 
 object Named {
@@ -39,19 +54,6 @@ object Named {
   }
 }
 
-@typeclass trait Replicate[E] {
-  def doStuff(event: E): IO[Unit]
-}
-
-object Bla {
-  type EOL = Unit
-
-  val dispatcher =
-    implicitly[HandleEvents[(AddUser[Double], (Double, (String, EOL)))]]
-
-  val out: Option[dispatcher.Out] = dispatcher.dispatch("addUser", ???)
-}
-
-object Events {
-  sealed trait Tweet[E]
+@typeclass trait Replicable[E] {
+  def replicate[F[_], U, T](r: Repo[F, U, T]): Sink[F, E]
 }
