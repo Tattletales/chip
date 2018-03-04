@@ -1,6 +1,8 @@
-import TweetActions.AddTweet
+import TweetActions.{AddTweet, TweetAction}
 import cats.Monad
 import cats.data.OptionT
+import doobie.util.composite.Composite
+import fs2._
 
 trait Tweets[F[_], User, Tweet] {
   def getTweets(user: User): F[List[Tweet]]
@@ -8,32 +10,34 @@ trait Tweets[F[_], User, Tweet] {
 }
 
 object Tweets extends TweetsInstances {
-  def apply[F[_], User, Tweet](
-      implicit T: Tweets[F, User, Tweet]): Tweets[F, User, Tweet] = T
+  def apply[F[_], User, Tweet](implicit T: Tweets[F, User, Tweet]): Tweets[F, User, Tweet] = T
 }
 
 sealed abstract class TweetsInstances {
-  implicit def tweets[F[_]: Monad, User: Userable, Tweet: Tweetable](
-      db: Database[F, String], client: HttpClient[F, String]) = new Tweets[F, User, Tweet] {
+  implicit def tweets[F[_]: Monad, User: Userable, Tweet: Tweetable: Composite](
+    db: Database[Stream[F, ?], String],
+    distributor: Distributor[Stream[F, ?], TweetAction]
+  ) = new Tweets[Stream[F, ?], User, Tweet] {
 
     import Tweetable.ops._
     import Userable.ops._
 
     // Retrieve all tweets posted by the User
-    override def getTweets(user: User): F[List[Tweet]] =
-      db.query(s"""
+    def getTweets(user: User): Stream[F, List[Tweet]] =
+      db.query[Tweet](s"""
            |SELECT *
            |FROM tweets
            |WHERE user_id = ${user.getId}
          """.stripMargin)
 
-    override def addTweet(user: User, tweet: Tweet): F[Option[Tweet]] =
+    def addTweet(user: User, tweet: Tweet): Stream[F, Option[Tweet]] =
       (for {
         tweet <- OptionT(db.insertAndGet[Tweet](s"""
-                                       |INSERT INTO tweets (user_id, content)
-                                       |VALUES (${user.getId}}, ${tweet.getText})
-       """.stripMargin))
-        _ <- distributor.share(AddTweet(tweet))
+           |INSERT INTO tweets (user_id, content)
+           |VALUES (${user.getId}}, ${tweet.getText})
+       """.stripMargin, Seq("id", "tweet"): _*))
+
+        _ <- OptionT.liftF(distributor.share(AddTweet(tweet)))
       } yield tweet).value
   }
 }

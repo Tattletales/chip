@@ -1,7 +1,8 @@
 import UsersActions._
 import cats.Monad
 import cats.data.OptionT
-import cats.implicits._
+import doobie.util.composite.Composite
+import fs2._
 
 trait Users[F[_], User] {
   def addUser(name: String, password: String): F[Option[User]]
@@ -14,24 +15,22 @@ object Users extends UsersInstances {
 }
 
 sealed abstract class UsersInstances {
-  implicit def syncedUsers[F[_]: Monad, User](
-      db: Database[F, String],
-      distributor: Distributor[F, UsersAction]): Users[F, User] =
-    new Users[F, User] {
-      def addUser(name: String, password: String): F[Option[User]] =
+  implicit def syncedUsers[F[_]: Monad, User: Composite](
+    db: Database[Stream[F, ?], String],
+    distributor: Distributor[Stream[F, ?], UsersAction]
+  ): Users[Stream[F, ?], User] =
+    new Users[Stream[F, ?], User] {
+      def addUser(name: String, password: String): Stream[F, Option[User]] =
         (for {
-          user <- OptionT(
-            db.insertAndGet[User](
-              s"""
+          user <- OptionT(db.insertAndGet[User](s"""
            |INSERT INTO users (name, password)
            |VALUES ($name, $password)
-       """.stripMargin,
-              Seq("id", "user", "password"): _*))
+       """.stripMargin, Seq("id", "user", "password"): _*))
 
-          _ <- distributor.share(AddUser(name, password))
+          _ <- OptionT.liftF(distributor.share(AddUser(name, password)))
         } yield user).value
 
-      def removeUser(user: User): F[Unit] =
+      def removeUser(user: User): Stream[F, Unit] =
         for {
           _ <- db.remove(s"""
            |DELETE FROM users
@@ -41,7 +40,7 @@ sealed abstract class UsersInstances {
           _ <- distributor.share(RemoveUser(user))
         } yield ()
 
-      def searchUser(name: String): F[List[User]] = db.query[User](s"""
+      def searchUser(name: String): Stream[F, List[User]] = db.query[User](s"""
          |SELECT *
          |FROM users
          |WHERE name = $name
