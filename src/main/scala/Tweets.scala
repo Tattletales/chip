@@ -45,6 +45,10 @@ object TweetsActions {
   sealed trait TweetsAction
   case class AddTweet(user: User, tweet: Tweet) extends TweetsAction
 
+  implicit val namedTweetsAction: Named[TweetsAction] = new Named[TweetsAction] {
+    val name: String = "Tweets"
+  }
+
   implicit val replicableTweetsAction: Replicable[TweetsAction] = new Replicable[TweetsAction] {
     def replicate[F[_]](r: Repo[F]): Sink[F, TweetsAction] = _.flatMap {
       case AddTweet(user, tweet) => r.tweets.addTweet(user, tweet).map(_ => ())
