@@ -1,0 +1,1 @@
+case class Tweet(id: Int, userId: Int, content: String)
