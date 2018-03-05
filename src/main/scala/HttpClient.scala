@@ -1,4 +1,4 @@
-import cats.Monad
+import cats.{Applicative, Monad}
 import cats.effect._
 import fs2.Stream
 import org.http4s._
@@ -9,6 +9,7 @@ trait HttpClient[F[_], G[_], Request] {
   def post[T, Response: EntityDecoder[G, ?]](request: Request, put: T)(
     implicit T: EntityEncoder[G, T]
   ): F[Response]
+  def postAndIgnore[T: EntityEncoder[G, ?]](request: Request, put: T): F[Unit]
 }
 
 object HttpClient extends HttpClientInstances {
@@ -31,16 +32,9 @@ sealed abstract class HttpClientInstances {
         implicit w: EntityEncoder[F, T]
       ): Stream[F, Response] = {
 
-        val req = Uri.fromString(request) match {
-          case Right(uri) =>
-            Stream.emit(
-              Request()
-                .withMethod(Method.POST)
-                .withUri(uri)
-                .withBody(put)(implicitly[Monad[F]], w)
-            )
-
-          case Left(err) => Stream.raiseError[F[Request[F]]](throw err)
+        val req = genPostReq(request, put) match {
+          case Right(req) => Stream.emit(req)
+          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
         }
 
         for {
@@ -49,5 +43,23 @@ sealed abstract class HttpClientInstances {
           out <- Stream.eval(client.expect[Response](req))
         } yield out
       }
+
+      def postAndIgnore[T: EntityEncoder[F, ?]](request: String, put: T): Stream[F, Unit] = {
+        val req = genPostReq(request, put) match {
+          case Right(req) => Stream.emit(req)
+          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
+        }
+
+        for {
+          client <- safeClient
+          req <- req.covary[F]
+          out <- Stream.eval(client.fetch[Unit](req)(_ => implicitly[Applicative[F]].pure(())))
+        } yield out
+      }
+
+      private def genPostReq[T: EntityEncoder[F, ?]](uri: String, body: T) =
+        Uri.fromString(uri).map {
+          Request().withMethod(Method.POST).withUri(_).withBody(body)
+        }
     }
 }

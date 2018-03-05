@@ -1,3 +1,5 @@
+import org.http4s.EntityEncoder
+
 trait Distributor[F[_], Message] {
   def share(m: Message): F[Unit]
 }
@@ -7,4 +9,8 @@ object Distributor extends DistributorInstances {
       implicit D: Distributor[F, Message]): Distributor[F, Message] = D
 }
 
-sealed abstract class DistributorInstances {}
+sealed abstract class DistributorInstances {
+  implicit def gossip[F[_], Message: EntityEncoder[F, ?]](uri: String, httpClient: HttpClient[F, F, String]): Distributor[F, Message] = new Distributor[F, Message] {
+    def share(m: Message): F[Unit] = httpClient.postAndIgnore(uri, m)
+  }
+}
