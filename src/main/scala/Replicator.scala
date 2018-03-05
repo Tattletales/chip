@@ -9,8 +9,7 @@ import shapeless.{::, HNil}
 import HandleEvents.{baseCase, inductionStep}
 
 object Replicator {
-  def apply[F[_]: Applicative, User, Tweet, Events](r: Repo[F, User, Tweet],
-                                            events: Stream[F, SseEvent]): Stream[F, Unit] = {
+  def apply[F[_]: Applicative, Events](r: Repo[F], events: Stream[F, SseEvent]): Stream[F, Unit] = {
     val handler = implicitly[HandleEvents[Events]]
 
     val eventTypes = events.map(_.event)

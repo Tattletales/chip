@@ -1,12 +1,11 @@
+import Database.Query
+import cats._
+import cats.implicits._
 import doobie._
 import doobie.implicits._
-import cats._
-import cats.data._
-import cats.effect.IO
-import cats.implicits._
 import fs2.Stream
 
-trait Database[F[_], Query] {
+trait Database[F[_]] {
   def query[R: Composite](q: Query): F[List[R]] // TODO remove Composite http://tpolecat.github.io/doobie/docs/12-Custom-Mappings.html
   def insert(q: Query): F[Boolean]
   def insertAndGet[R: Composite](q: Query, cols: String*): F[Option[R]]
@@ -15,19 +14,21 @@ trait Database[F[_], Query] {
 }
 
 object Database extends DatabaseInstances {
-  def apply[F[_], Query](implicit D: Database[F, Query]): Database[F, Query] = D
+  def apply[F[_]](implicit D: Database[F]): Database[F] = D
+
+  case class Query(q: String) extends AnyVal
 }
 
 sealed abstract class DatabaseInstances {
-  implicit def doobieDatabase[F[_]: Monad](xa: Transactor[F]): Database[Stream[F, ?], String] =
-    new Database[Stream[F, ?], String] {
-      def query[R: Composite](q: String): Stream[F, List[R]] =
+  implicit def doobieDatabase[F[_]: Monad](xa: Transactor[F]): Database[Stream[F, ?]] =
+    new Database[Stream[F, ?]] {
+      def query[R: Composite](q: Query): Stream[F, List[R]] =
         Stream.eval(sql"$q".query[R].to[List].transact(xa))
 
-      def insert(q: String): Stream[F, Boolean] =
+      def insert(q: Query): Stream[F, Boolean] =
         Stream.eval(sql"$q".update.run.transact(xa).map(_ > 0))
 
-      def insertAndGet[R: Composite](q: String, cols: String*): Stream[F, Option[R]] =
+      def insertAndGet[R: Composite](q: Query, cols: String*): Stream[F, Option[R]] =
         Stream
           .eval(
             sql"$q".update
@@ -39,9 +40,9 @@ sealed abstract class DatabaseInstances {
           )
           .map(_.toOption)
 
-      def remove(q: String): Stream[F, Unit] = ???
+      def remove(q: Query): Stream[F, Unit] = ???
 
-      def exists(q: String): Stream[F, Boolean] =
+      def exists(q: Query): Stream[F, Boolean] =
         Stream.eval(sql"$q".query[Int].unique.map(_ > 0).transact(xa))
     }
 }
