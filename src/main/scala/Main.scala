@@ -10,7 +10,12 @@ object Main extends StreamApp[IO] {
 
   type Query = String
 
-  val xa: Transactor[IO] = ???
+  val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
+    "org.postgresql.Driver", // driver classname
+    "jdbc:postgresql:chip_db", // connect URL (driver-specific)
+    "tattletales", // user
+    "tattletales" // password
+  )
 
   val userDB: Database[Stream[IO, ?]] = Database.doobieDatabase(xa)
   val tweetsDB: Database[Stream[IO, ?]] = Database.doobieDatabase(xa)
