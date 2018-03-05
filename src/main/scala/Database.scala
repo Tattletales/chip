@@ -7,6 +7,7 @@ import fs2.Stream
 
 trait Database[F[_]] {
   def query[R: Composite](q: Query): F[List[R]] // TODO remove Composite http://tpolecat.github.io/doobie/docs/12-Custom-Mappings.html
+  def queryStream[R: Composite](q: Query): F[R]
   def insert(q: Query): F[Boolean]
   def insertAndGet[R: Composite](q: Query, cols: String*): F[Option[R]]
   def remove(q: Query): F[Unit]
@@ -25,6 +26,9 @@ sealed abstract class DatabaseInstances {
       def query[R: Composite](q: Query): Stream[F, List[R]] =
         Stream.eval(sql"$q".query[R].to[List].transact(xa))
 
+      def queryStream[R: Composite](q: Query): Stream[F, R] =
+        sql"$q".query[R].stream.transact(xa)
+
       def insert(q: Query): Stream[F, Boolean] =
         Stream.eval(sql"$q".update.run.transact(xa).map(_ > 0))
 
@@ -34,7 +38,8 @@ sealed abstract class DatabaseInstances {
             sql"$q".update
               .withUniqueGeneratedKeys[R](cols: _*)
               .attemptSomeSqlState {
-                case doobie.postgres.sqlstate.class23.UNIQUE_VIOLATION => "Coucou"
+                case doobie.postgres.sqlstate.class23.UNIQUE_VIOLATION =>
+                  "Coucou"
               }
               .transact(xa)
           )

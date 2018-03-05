@@ -9,7 +9,7 @@ trait HttpClient[F[_], G[_]] {
   def get[Response: EntityDecoder[G, ?]](uri: Uri): F[Response]
 
   def post[T, Response: EntityDecoder[G, ?]](uri: Uri, body: T)(
-    implicit T: EntityEncoder[G, T]
+      implicit T: EntityEncoder[G, T]
   ): F[Response]
 
   def postAndIgnore[T: EntityEncoder[G, ?]](uri: Uri, body: T): F[Unit]
@@ -34,12 +34,12 @@ sealed abstract class HttpClientInstances {
         } yield out
 
       def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
-        implicit w: EntityEncoder[F, T]
+          implicit w: EntityEncoder[F, T]
       ): Stream[F, Response] = {
 
         val req = genPostReq(uri, body) match {
           case Right(req) => Stream.emit(req)
-          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
+          case Left(err) => Stream.raiseError[F[Request[F]]](err)
         }
 
         for {
@@ -52,7 +52,7 @@ sealed abstract class HttpClientInstances {
       def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): Stream[F, Unit] = {
         val req = genPostReq(uri, body) match {
           case Right(req) => Stream.emit(req)
-          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
+          case Left(err) => Stream.raiseError[F[Request[F]]](err)
         }
 
         for {

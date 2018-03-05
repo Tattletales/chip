@@ -12,9 +12,9 @@ import fs2._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-object Main extends Main[IO]
+object ChipApp extends Chip[IO]
 
-class Main[F[_]: Effect] extends StreamApp[F] {
+class Chip[F[_]: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       Stream(program.map(_ => ()), replicator).join(2).drain ++ Stream.emit(ExitCode.Success)
@@ -27,25 +27,24 @@ class Main[F[_]: Effect] extends StreamApp[F] {
     "tattletales" // password
   )
 
-  val userDB: Database[Stream[F, ?]] = Database.doobieDatabase(xa)
-  val tweetsDB: Database[Stream[F, ?]] = Database.doobieDatabase(xa)
+  val userDB = Database.doobieDatabase(xa)
+  val tweetsDB = Database.doobieDatabase(xa)
 
   val httpClient: HttpClient[Stream[F, ?], F] = HttpClient.http4sClient[F]
 
-  val usersActionsDistributor: Distributor[Stream[F, ?], F, UsersAction] =
+  val usersActionsDistributor =
     Distributor.gossip[Stream[F, ?], F, UsersAction](Uri("localhost"), httpClient)
-  val tweetsActionsDistributor: Distributor[Stream[F, ?], F, TweetsAction] =
+  val tweetsActionsDistributor =
     Distributor.gossip[Stream[F, ?], F, TweetsAction](Uri("localhost"), httpClient)
 
-  val users: Users[Stream[F, ?]] = Users.replicated(userDB, usersActionsDistributor)
-  val tweets: Tweets[Stream[F, ?]] = Tweets.replicated(tweetsDB, tweetsActionsDistributor)
+  val users = Users.replicated(userDB, usersActionsDistributor)
+  val tweets = Tweets.replicated(tweetsDB, tweetsActionsDistributor)
 
-  val repo: Repo[F] = Repo[F](users, tweets)
+  val repo = Repo[F](users, tweets)
 
-  val sseClient: SseClient[Stream[F, ?]] = SseClient[Stream[F, ?]]
+  val sseClient = SseClient[Stream[F, ?]]
 
-  val replicator: Stream[F, Unit] =
-    Replicator[F](repo, sseClient.subscribe("Bla"))
+  val replicator = Replicator[F](repo, sseClient.subscribe("Bla"))
 
   val program = (for {
     user <- OptionT(users.addUser(Name("Teub"), Password("admin")))

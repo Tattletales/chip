@@ -24,7 +24,7 @@ object HandleEvents {
                                              replicate: Replicable[E],
                                              tail: HandleEvents[Es]): HandleEvents[E :: Es] =
     new HandleEvents[E :: Es] {
-      def handle[F[_]](r: Repo[F])(event: Event)(implicit F: Applicative[F]): Stream[F, Unit] = {
+      def handle[F[_]](r: Repo[F])(event: Event)(implicit F: Applicative[F]): Stream[F, Unit] =
         if (event.name == head.name)
           Stream
             .emit(event.payload)
@@ -32,14 +32,15 @@ object HandleEvents {
             .through(decoder[F, E])
             .to(replicate.replicate(r))
         else tail.handle(r)(event)
-      }
     }
 }
 
-@typeclass trait Named[T] {
+@typeclass
+trait Named[T] {
   def name: String
 }
 
-@typeclass trait Replicable[E] {
+@typeclass
+trait Replicable[E] {
   def replicate[F[_]](r: Repo[F]): Sink[F, E]
 }
