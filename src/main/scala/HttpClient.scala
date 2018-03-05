@@ -6,10 +6,14 @@ import org.http4s.dsl._
 import org.http4s.client._
 import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
 import org.http4s.client.dsl.Http4sClientDsl
+import org.http4s._
+import org.http4s.client.blaze.Http1Client
+import org.http4s.client.dsl.Http4sClientDsl
+import org.http4s.dsl.io._
 
 trait HttpClient[F[_], G[_], Request] {
   def get[Response: EntityDecoder[G, ?]](request: Request): F[Response]
-  def post[T](request: Request, put: T): F[Unit]
+  def post[T: EntityEncoder[G, ?]](request: Request, put: T): F[Unit]
 }
 
 object HttpClient extends HttpClientInstances {
@@ -27,8 +31,17 @@ sealed abstract class HttpClientInstances {
           out <- Stream.eval(client.expect[Response](request))
         } yield out
 
-      // TODO implement
-      def post[T](request: String, put: T): Stream[F, Unit] =
-        Stream.eval(implicitly[Effect[F]].pure(()))
+      def post[T: EntityEncoder[F, ?]](request: String, put: T): Stream[F, Unit] = {
+
+        val req = Request()
+          .withMethod(Method.POST)
+          .withUri(uri(request))
+          .withBody(put)
+
+        for {
+          client <- safeClient
+          out <- Stream.eval(client.expect[String](req))
+        } yield out
+      }
     }
 }
