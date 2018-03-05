@@ -8,6 +8,7 @@ import fs2._
 import shapeless.{::, HList, HNil}
 import simulacrum._
 
+// https://youtu.be/Nm4OIhjjA2o
 trait HandleEvents[E] {
   def handle[F[_], U, T](r: Repo[F, U, T])(event: Event)(
     implicit F: Applicative[F]
