@@ -35,16 +35,18 @@ sealed abstract class TweetsInstances {
            |VALUES (${user.id}}, ${tweet.content})
           """.stripMargin), Seq("id", "tweet"): _*))
 
-        _ <- OptionT.liftF(distributor.share(AddTweet(tweet)))
+        _ <- OptionT.liftF(distributor.share(AddTweet(user, tweet)))
       } yield tweet).value
   }
 }
 
 object TweetsActions {
   sealed trait TweetsAction
-  case class AddTweet(tweet: Tweet) extends TweetsAction
+  case class AddTweet(user: User, tweet: Tweet) extends TweetsAction
 
-  implicit val namedTweetsAction: Named[TweetsAction] = new Named[TweetsAction] {
-    val name: String = "Tweets"
+  implicit val replicableTweetsAction: Replicable[TweetsAction] = new Replicable[TweetsAction] {
+    def replicate[F[_]](r: Repo[F]): Sink[F, TweetsAction] = _.foldMap {
+      case AddTweet(user, tweet) => r.tweets.addTweet(user, tweet)
+    }
   }
 }
