@@ -33,15 +33,20 @@ sealed abstract class HttpClientInstances {
 
       def post[T: EntityEncoder[F, ?]](request: String, put: T): Stream[F, Unit] = {
 
-        val req = Request()
-          .withMethod(Method.POST)
-          .withUri(uri(request))
-          .withBody(put)
+        Uri.fromString(request) match {
+          case Right(uri) =>
+            val req = Request()
+              .withMethod(Method.POST)
+              .withUri(uri)
+              .withBody(put)
 
-        for {
-          client <- safeClient
-          out <- Stream.eval(client.expect[String](req))
-        } yield out
+            for {
+              client <- safeClient
+              out <- Stream.eval(client.expect[String](req))
+            } yield out
+
+          case Left(err) => Stream.raiseError[Unit](throw err)
+        }
       }
     }
 }
