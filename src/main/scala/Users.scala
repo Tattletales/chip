@@ -18,7 +18,7 @@ object Users extends UsersInstances {
 sealed abstract class UsersInstances {
   implicit def replicated[F[_]: Monad](
     db: Database[Stream[F, ?]],
-    distributor: Distributor[Stream[F, ?], UsersAction]
+    distributor: Distributor[Stream[F, ?], F, UsersAction]
   ): Users[Stream[F, ?]] = new Users[Stream[F, ?]] {
     def addUser(name: Name, password: Password): Stream[F, Option[User]] =
       (for {

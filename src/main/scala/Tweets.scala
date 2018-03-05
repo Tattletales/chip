@@ -16,7 +16,7 @@ object Tweets extends TweetsInstances {
 sealed abstract class TweetsInstances {
   implicit def replicated[F[_]: Monad](
     db: Database[Stream[F, ?]],
-    distributor: Distributor[Stream[F, ?], TweetsAction]
+    distributor: Distributor[Stream[F, ?], F, TweetsAction]
   ): Tweets[Stream[F, ?]] = new Tweets[Stream[F, ?]] {
 
     // Retrieve all tweets posted by the User
