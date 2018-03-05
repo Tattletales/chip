@@ -1,12 +1,9 @@
 import TweetsActions.TweetsAction
 import UsersActions.UsersAction
-import cats.effect.{Effect, IO}
+import cats.effect.IO
 import doobie.util.transactor.Transactor
-import fs2._
 import fs2.StreamApp.ExitCode
-import HandleEvents._
-import shapeless.{HNil, ::}
-import org.http4s
+import fs2._
 
 object Main extends StreamApp[IO] {
   def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = ???
@@ -29,5 +26,5 @@ object Main extends StreamApp[IO] {
   val sseClient: SseClient[Stream[IO, ?]] = SseClient[Stream[IO, ?]]
 
   val replicator: Stream[IO, Unit] =
-    Replicator[IO, UsersAction :: TweetsAction](repo, sseClient.subscribe("Bla"))
+    Replicator[IO](repo, sseClient.subscribe("Bla"))
 }

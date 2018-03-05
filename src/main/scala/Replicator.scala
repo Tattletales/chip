@@ -1,16 +1,16 @@
-import HandleEvents.Event
-import io.circe.fs2._
-import fs2._
+import HandleEvents.{Event, baseCase, inductionStep}
 import SseClient.{SSEvent => SseEvent}
 import TweetsActions.TweetsAction
 import UsersActions.UsersAction
 import cats.Applicative
+import io.circe.fs2._
+import io.circe.generic.auto._
+import fs2._
 import shapeless.{::, HNil}
-import HandleEvents.{baseCase, inductionStep}
 
 object Replicator {
-  def apply[F[_]: Applicative, Events](r: Repo[F], events: Stream[F, SseEvent]): Stream[F, Unit] = {
-    val handler = implicitly[HandleEvents[Events]]
+  def apply[F[_]: Applicative](r: Repo[F], events: Stream[F, SseEvent]): Stream[F, Unit] = {
+    val handler = implicitly[HandleEvents[TweetsAction :: UsersAction :: HNil]]
 
     val eventTypes = events.map(_.event)
     val payloads = events.map(_.payload).through(stringStreamParser)

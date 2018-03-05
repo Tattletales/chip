@@ -3,7 +3,6 @@ import User.{Name, Password}
 import UsersActions._
 import cats.Monad
 import cats.data.OptionT
-import doobie.util.composite.Composite
 import fs2._
 
 trait Users[F[_]] {

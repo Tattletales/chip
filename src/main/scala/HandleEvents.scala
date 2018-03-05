@@ -1,6 +1,4 @@
 import HandleEvents.Event
-import TweetsActions.TweetsAction
-import UsersActions.UsersAction
 import cats.Applicative
 import io.circe.fs2._
 import io.circe.{Decoder, Json}

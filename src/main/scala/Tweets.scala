@@ -1,9 +1,7 @@
 import Database.Query
 import TweetsActions.{AddTweet, TweetsAction}
-import User.Name
 import cats.Monad
 import cats.data.OptionT
-import doobie.util.composite.Composite
 import fs2._
 
 trait Tweets[F[_]] {

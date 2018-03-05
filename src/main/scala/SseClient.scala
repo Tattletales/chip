@@ -8,9 +8,8 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
-import cats.effect.{Async, Effect, IO}
+import cats.effect.IO
 import fs2.Stream
-import io.circe._
 import streamz.converter._
 
 import scala.concurrent.ExecutionContext
