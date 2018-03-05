@@ -41,7 +41,8 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-core",
   "io.circe" %% "circe-generic",
   "io.circe" %% "circe-literal",
-  "io.circe" %% "circe-parser"
+  "io.circe" %% "circe-parser",
+  "org.http4s" %% "http4s-circe"
 ).map(_ % circeVersion)
 
 libraryDependencies += "io.circe" % "circe-fs2_2.12" % "0.9.0"
