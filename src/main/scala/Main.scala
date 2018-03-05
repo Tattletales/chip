@@ -5,6 +5,8 @@ import doobie.util.transactor.Transactor
 import fs2._
 import fs2.StreamApp.ExitCode
 import HandleEvents._
+import shapeless.{HNil, ::}
+import org.http4s
 
 object Main extends StreamApp[IO] {
   def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = ???
@@ -28,8 +30,7 @@ object Main extends StreamApp[IO] {
   val repo: Repo[IO, User, Tweet] = Repo[IO, User, Tweet](users, tweets)
 
   val sseClient: SseClient[Stream[IO, ?]] = SseClient[Stream[IO, ?]]
-  
-  val replicator: Stream[IO, Unit] = Replicator[IO, String, String](repo, sseClient.subscribe("Bla"))
-  
-  
+
+  val replicator: Stream[IO, Unit] =
+    Replicator[IO, String, String, UsersAction :: TweetsAction](repo, sseClient.subscribe("Bla"))
 }
