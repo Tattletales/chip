@@ -2,7 +2,7 @@ import HandleEvents.Event
 import io.circe.fs2._
 import fs2._
 import SseClient.{SSEvent => SseEvent}
-import TweetActions.TweetsAction
+import TweetsActions.TweetsAction
 import UsersActions.UsersAction
 import cats.Applicative
 import shapeless.{::, HNil}

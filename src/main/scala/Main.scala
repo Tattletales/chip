@@ -1,4 +1,4 @@
-import TweetActions.TweetsAction
+import TweetsActions.TweetsAction
 import UsersActions.UsersAction
 import cats.effect.{Effect, IO}
 import doobie.util.transactor.Transactor
@@ -10,7 +10,6 @@ object Main extends StreamApp[IO] {
   def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = ???
 
   type Tweet = String
-  type User = String
   type Query = String
 
   val xa: Transactor[IO] = ???
@@ -29,7 +28,7 @@ object Main extends StreamApp[IO] {
 
   val sseClient: SseClient[Stream[IO, ?]] = SseClient[Stream[IO, ?]]
   
-  val replicator: Stream[IO, Unit] = Replicator[IO, String, String](repo, sseClient.subscribe("Bla"))
+  val replicator: Stream[IO, Unit] = Replicator[IO, User, Tweet](repo, sseClient.subscribe("Bla"))
   
   
 }

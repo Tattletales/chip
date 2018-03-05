@@ -1,4 +1,4 @@
-import TweetActions.{AddTweet, TweetsAction}
+import TweetsActions.{AddTweet, TweetsAction}
 import cats.Monad
 import cats.data.OptionT
 import doobie.util.composite.Composite
@@ -42,7 +42,11 @@ sealed abstract class TweetsInstances {
   }
 }
 
-object TweetActions {
+object TweetsActions {
   sealed trait TweetsAction
   case class AddTweet[Tweet](tweet: Tweet) extends TweetsAction
+
+  implicit val namedTweetsAction: Named[TweetsAction] = new Named[TweetsAction] {
+    val name: String = "Tweets"
+  }
 }

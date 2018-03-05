@@ -52,4 +52,8 @@ object UsersActions {
   sealed trait UsersAction
   case class AddUser(name: String, password: String) extends UsersAction
   case class RemoveUser[User](user: User) extends UsersAction
+
+  implicit val namedUsersAction: Named[UsersAction] = new Named[UsersAction] {
+    val name: String = "Users"
+  }
 }

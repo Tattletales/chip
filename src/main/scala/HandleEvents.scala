@@ -1,5 +1,5 @@
 import HandleEvents.Event
-import TweetActions.TweetsAction
+import TweetsActions.TweetsAction
 import UsersActions.UsersAction
 import cats.Applicative
 import io.circe.fs2._
@@ -32,6 +32,7 @@ object HandleEvents {
       def handle[F[_], U, T](
         r: Repo[F, U, T]
       )(event: Event)(implicit F: Applicative[F]): Stream[F, Unit] = {
+        import Named.ops._
         if (event.name == head.name)
           Stream
             .emit(event.payload)
@@ -45,14 +46,6 @@ object HandleEvents {
 
 @typeclass trait Named[T] {
   def name: String
-}
-
-object Named {
-  case class AddUser[User](user: User)
-
-  implicit def namedAddUser[T]: Named[AddUser[T]] = new Named[AddUser[T]] {
-    val name = "addUser"
-  }
 }
 
 @typeclass trait Replicable[E] {
