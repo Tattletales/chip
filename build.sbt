@@ -54,7 +54,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream" % "2.5.9"
 )
 
-libraryDependencies += "com.github.krasserm" %% "streamz-converter" % "0.9"
+libraryDependencies += "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.5.1"
 
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 
