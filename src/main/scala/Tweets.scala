@@ -1,5 +1,6 @@
 import Database.Query
 import TweetsActions.{AddTweet, TweetsAction}
+import User.Name
 import cats.Monad
 import cats.data.OptionT
 import doobie.util.composite.Composite
@@ -45,8 +46,8 @@ object TweetsActions {
   case class AddTweet(user: User, tweet: Tweet) extends TweetsAction
 
   implicit val replicableTweetsAction: Replicable[TweetsAction] = new Replicable[TweetsAction] {
-    def replicate[F[_]](r: Repo[F]): Sink[F, TweetsAction] = _.foldMap {
-      case AddTweet(user, tweet) => r.tweets.addTweet(user, tweet)
+    def replicate[F[_]](r: Repo[F]): Sink[F, TweetsAction] = _.flatMap {
+      case AddTweet(user, tweet) => r.tweets.addTweet(user, tweet).map(_ => ())
     }
   }
 }
