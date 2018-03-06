@@ -1,4 +1,5 @@
 import HttpClient.Uri
+import cats.data.OptionT
 import cats.effect._
 import cats.{Applicative, Monad}
 import fs2.Stream
@@ -10,9 +11,15 @@ trait HttpClient[F[_], G[_]] {
 
   def post[T, Response: EntityDecoder[G, ?]](uri: Uri, body: T)(
       implicit T: EntityEncoder[G, T]
+  ): F[Option[Response]]
+
+  def unsafePost[T, Response: EntityDecoder[G, ?]](uri: Uri, body: T)(
+      implicit T: EntityEncoder[G, T]
   ): F[Response]
 
-  def postAndIgnore[T: EntityEncoder[G, ?]](uri: Uri, body: T): F[Unit]
+  def postAndIgnore[T: EntityEncoder[G, ?]](uri: Uri, body: T): F[Option[Unit]]
+
+  def unsafePostAndIgnore[T: EntityEncoder[G, ?]](uri: Uri, body: T): F[Unit]
 }
 
 object HttpClient extends HttpClientInstances {
@@ -35,11 +42,20 @@ sealed abstract class HttpClientInstances {
 
       def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
           implicit w: EntityEncoder[F, T]
+      ): Stream[F, Option[Response]] =
+        (for {
+          client <- OptionT.liftF(safeClient)
+          req <- OptionT(Stream.emit(genPostReq(uri, body).toOption).covary[F])
+          out <- OptionT.liftF(Stream.eval(client.expect[Response](req)))
+        } yield out).value
+
+      def unsafePost[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
+          implicit w: EntityEncoder[F, T]
       ): Stream[F, Response] = {
 
         val req = genPostReq(uri, body) match {
           case Right(req) => Stream.emit(req)
-          case Left(err) => Stream.raiseError[F[Request[F]]](err)
+          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
         }
 
         for {
@@ -49,10 +65,18 @@ sealed abstract class HttpClientInstances {
         } yield out
       }
 
-      def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): Stream[F, Unit] = {
+      def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): Stream[F, Option[Unit]] =
+        (for {
+          client <- OptionT.liftF(safeClient)
+          req <- OptionT(Stream.emit(genPostReq(uri, body).toOption).covary[F])
+          out <- OptionT.liftF(
+            Stream.eval(client.fetch[Unit](req)(_ => implicitly[Applicative[F]].pure(()))))
+        } yield out).value
+
+      def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): Stream[F, Unit] = {
         val req = genPostReq(uri, body) match {
           case Right(req) => Stream.emit(req)
-          case Left(err) => Stream.raiseError[F[Request[F]]](err)
+          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
         }
 
         for {

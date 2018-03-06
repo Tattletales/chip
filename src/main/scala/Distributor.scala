@@ -21,6 +21,6 @@ sealed abstract class DistributorInstances {
       uri: Uri,
       httpClient: HttpClient[F, G]
   ): Distributor[F, G, Message] = new Distributor[F, G, Message] {
-    def share(m: Message): F[Unit] = httpClient.postAndIgnore(uri, m.asJson)
+    def share(m: Message): F[Unit] = httpClient.unsafePostAndIgnore(uri, m.asJson)
   }
 }
