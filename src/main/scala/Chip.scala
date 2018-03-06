@@ -47,8 +47,8 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
   val replicator = Replicator[F](repo, sseClient.subscribe("Bla"))
 
   val program = (for {
-    user <- OptionT(users.addUser(Name("Teub"), Password("admin")))
-    tweet <- OptionT(tweets.addTweet(user, Tweet(TweetId(0), UserId(0), TweetContent("Ma bite"))))
-  } yield tweet).value
+    user <- OptionT(users.addUser(Name("Tattletales"), Password("1234")))
+    //tweet <- OptionT(tweets.addTweet(user, Tweet(TweetId(0), UserId(0), TweetContent("Hello World"))))
+  } yield user).value
 
 }

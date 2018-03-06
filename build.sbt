@@ -47,6 +47,8 @@ libraryDependencies ++= Seq(
 
 libraryDependencies += "io.circe" % "circe-fs2_2.12" % "0.9.0"
 
+//libraryDependencies += "org.log4s" %% "log4s" % "1.5.0"
+
 libraryDependencies ++= Seq("com.chuusai" %% "shapeless" % "2.3.3")
 
 libraryDependencies ++= Seq(

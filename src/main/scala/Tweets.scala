@@ -1,7 +1,7 @@
-import Database.Query
 import TweetsActions.{AddTweet, TweetsAction}
 import cats.Monad
 import cats.data.OptionT
+import doobie.implicits._
 import fs2._
 
 trait Tweets[F[_]] {
@@ -22,28 +22,28 @@ sealed abstract class TweetsInstances {
 
     // Retrieve all tweets posted by the User
     def getTweets(user: User): Stream[F, List[Tweet]] =
-      db.query[Tweet](Query(s"""
-           |SELECT *
-           |FROM tweets
-           |WHERE user_id = ${user.id}
-         """.stripMargin))
+      db.query[Tweet](sql"""
+           SELECT *
+           FROM tweets
+           WHERE user_id = ${user.id}
+         """)
 
     def getTweetsStream(user: User): Stream[F, Tweet] =
-      db.queryStream[Tweet](Query(s"""
-           |SELECT *
-           |FROM tweets
-           |WHERE user_id = ${user.id}
-         """.stripMargin))
+      db.queryStream[Tweet](sql"""
+           SELECT *
+           FROM tweets
+           WHERE user_id = ${user.id}
+         """)
 
     def addTweet(user: User, tweet: Tweet): Stream[F, Option[Tweet]] =
       (for {
         tweet <- OptionT(
           db.insertAndGet[Tweet](
-            Query(s"""
-           |INSERT INTO tweets (user_id, content)
-           |VALUES (${user.id}}, ${tweet.content})
-          """.stripMargin),
-            Seq("id", "tweet"): _*
+            sql"""
+           INSERT INTO tweets (userId, content)
+           VALUES (${user.id}}, ${tweet.content})
+          """,
+            Seq("id", "userId", "content"): _*
           ))
 
         _ <- OptionT.liftF(distributor.share(AddTweet(user, tweet)))
