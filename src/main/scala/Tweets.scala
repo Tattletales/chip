@@ -1,13 +1,13 @@
 import TweetsActions.{AddTweet, TweetsAction}
-import cats.Monad
-import cats.data.OptionT
+import cats.effect.Effect
+import cats.implicits._
+import cats.{Monad, ~>}
 import doobie.implicits._
-import fs2._
+import org.http4s.EntityDecoder
 
 trait Tweets[F[_]] {
   def getTweets(user: User): F[List[Tweet]]
-  def getTweetsStream(user: User): F[Tweet]
-  def addTweet(user: User, tweet: Tweet): F[Option[Tweet]]
+  def addTweet(user: User, tweetContent: String): F[Tweet]
 }
 
 object Tweets extends TweetsInstances {
@@ -15,45 +15,32 @@ object Tweets extends TweetsInstances {
 }
 
 sealed abstract class TweetsInstances {
-  implicit def replicated[F[_]: Monad](
-      db: Database[Stream[F, ?]],
-      distributor: Distributor[Stream[F, ?], F, TweetsAction]
-  ): Tweets[Stream[F, ?]] = new Tweets[Stream[F, ?]] {
+  implicit def replicated[F[_]: Monad, G[_]: EntityDecoder[?[_], String]](
+      db: Database[G],
+      distributor: Distributor[F, TweetsAction],
+      httpClient: HttpClient[F, G]
+  )(implicit gToF: G ~> F): Tweets[F] = new Tweets[F] {
 
     // Retrieve all tweets posted by the User
-    def getTweets(user: User): Stream[F, List[Tweet]] =
-      db.query[Tweet](sql"""
+    def getTweets(user: User): F[List[Tweet]] =
+      gToF(db.query[Tweet](sql"""
            SELECT *
            FROM tweets
            WHERE user_id = ${user.id}
-         """)
+         """))
 
-    def getTweetsStream(user: User): Stream[F, Tweet] =
-      db.queryStream[Tweet](sql"""
-           SELECT *
-           FROM tweets
-           WHERE user_id = ${user.id}
-         """)
-
-    def addTweet(user: User, tweet: Tweet): Stream[F, Option[Tweet]] =
-      (for {
-        tweet <- OptionT(
-          db.insertAndGet[Tweet](
-            sql"""
-           INSERT INTO tweets (userId, content)
-           VALUES (${user.id}}, ${tweet.content})
-          """,
-            Seq("id", "userId", "content"): _*
-          ))
-
-        _ <- OptionT.liftF(distributor.share(AddTweet(user, tweet)))
-      } yield tweet).value
+    def addTweet(user: User, tweetContent: String): F[Tweet] =
+      for {
+        tweetId <- httpClient.get[String]("Bla")
+        tweet = Tweet(tweetId, user.id, tweetContent)
+        _ <- distributor.share(AddTweet(tweet))
+      } yield tweet
   }
 }
 
 object TweetsActions {
   sealed trait TweetsAction
-  case class AddTweet(user: User, tweet: Tweet) extends TweetsAction
+  case class AddTweet(tweet: Tweet) extends TweetsAction
 
   implicit val namedTweetsAction: Named[TweetsAction] =
     new Named[TweetsAction] {
@@ -62,9 +49,11 @@ object TweetsActions {
 
   implicit val replicableTweetsAction: Replicable[TweetsAction] =
     new Replicable[TweetsAction] {
-      def replicate[F[_]](r: Repo[F]): Sink[F, TweetsAction] = _.flatMap {
-        case AddTweet(user, tweet) =>
-          r.tweets.addTweet(user, tweet).map(_ => ())
+      def replicate[F[_]: Effect](db: Database[F]): TweetsAction => F[Unit] = {
+        case AddTweet(tweet) => db.insert(sql"""
+           INSERT INTO tweets (tweetId, userId, content)
+           VALUES (${tweet.id}}, ${tweet.userId}, ${tweet.content})
+          """)
       }
     }
 }

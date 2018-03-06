@@ -1,4 +1,3 @@
-import HttpClient.Uri
 import cats.data.OptionT
 import cats.effect._
 import cats.{Applicative, Monad}
@@ -7,26 +6,24 @@ import org.http4s.client.blaze.Http1Client
 import org.http4s.{Uri => Http4sUri, _}
 
 trait HttpClient[F[_], G[_]] {
-  def get[Response: EntityDecoder[G, ?]](uri: Uri): F[Response]
+  def get[Response: EntityDecoder[G, ?]](uri: String): F[Response]
 
-  def post[T, Response: EntityDecoder[G, ?]](uri: Uri, body: T)(
+  def post[T, Response: EntityDecoder[G, ?]](uri: String, body: T)(
       implicit T: EntityEncoder[G, T]
   ): F[Option[Response]]
 
-  def unsafePost[T, Response: EntityDecoder[G, ?]](uri: Uri, body: T)(
+  def unsafePost[T, Response: EntityDecoder[G, ?]](uri: String, body: T)(
       implicit T: EntityEncoder[G, T]
   ): F[Response]
 
-  def postAndIgnore[T: EntityEncoder[G, ?]](uri: Uri, body: T): F[Option[Unit]]
+  def postAndIgnore[T: EntityEncoder[G, ?]](uri: String, body: T): F[Option[Unit]]
 
-  def unsafePostAndIgnore[T: EntityEncoder[G, ?]](uri: Uri, body: T): F[Unit]
+  def unsafePostAndIgnore[T: EntityEncoder[G, ?]](uri: String, body: T): F[Unit]
 }
 
 object HttpClient extends HttpClientInstances {
   def apply[F[_], G[_]](implicit H: HttpClient[F, G]): HttpClient[F, G] =
     H
-
-  case class Uri(uri: String) extends AnyVal
 }
 
 sealed abstract class HttpClientInstances {
@@ -34,13 +31,13 @@ sealed abstract class HttpClientInstances {
     new HttpClient[Stream[F, ?], F] {
       private[this] val safeClient = Http1Client.stream[F]()
 
-      def get[Response: EntityDecoder[F, ?]](uri: Uri): Stream[F, Response] =
+      def get[Response: EntityDecoder[F, ?]](uri: String): Stream[F, Response] =
         for {
           client <- safeClient
-          out <- Stream.eval(client.expect[Response](uri.uri))
+          out <- Stream.eval(client.expect[Response](uri))
         } yield out
 
-      def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
+      def post[T, Response: EntityDecoder[F, ?]](uri: String, body: T)(
           implicit w: EntityEncoder[F, T]
       ): Stream[F, Option[Response]] =
         (for {
@@ -49,13 +46,13 @@ sealed abstract class HttpClientInstances {
           out <- OptionT.liftF(Stream.eval(client.expect[Response](req)))
         } yield out).value
 
-      def unsafePost[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
+      def unsafePost[T, Response: EntityDecoder[F, ?]](uri: String, body: T)(
           implicit w: EntityEncoder[F, T]
       ): Stream[F, Response] = {
 
         val req = genPostReq(uri, body) match {
           case Right(req) => Stream.emit(req)
-          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
+          case Left(err) => Stream.raiseError[F[Request[F]]](err)
         }
 
         for {
@@ -65,7 +62,7 @@ sealed abstract class HttpClientInstances {
         } yield out
       }
 
-      def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): Stream[F, Option[Unit]] =
+      def postAndIgnore[T: EntityEncoder[F, ?]](uri: String, body: T): Stream[F, Option[Unit]] =
         (for {
           client <- OptionT.liftF(safeClient)
           req <- OptionT(Stream.emit(genPostReq(uri, body).toOption).covary[F])
@@ -73,10 +70,10 @@ sealed abstract class HttpClientInstances {
             Stream.eval(client.fetch[Unit](req)(_ => implicitly[Applicative[F]].pure(()))))
         } yield out).value
 
-      def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): Stream[F, Unit] = {
+      def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: String, body: T): Stream[F, Unit] = {
         val req = genPostReq(uri, body) match {
           case Right(req) => Stream.emit(req)
-          case Left(err)  => Stream.raiseError[F[Request[F]]](err)
+          case Left(err) => Stream.raiseError[F[Request[F]]](err)
         }
 
         for {
@@ -86,8 +83,8 @@ sealed abstract class HttpClientInstances {
         } yield out
       }
 
-      private def genPostReq[T: EntityEncoder[F, ?]](uri: Uri, body: T) =
-        Http4sUri.fromString(uri.uri).map {
+      private def genPostReq[T: EntityEncoder[F, ?]](uri: String, body: T) =
+        Http4sUri.fromString(uri).map {
           Request().withMethod(Method.POST).withUri(_).withBody(body)
         }
     }

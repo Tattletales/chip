@@ -1,10 +1,7 @@
-import HttpClient.Uri
-import Tweet._
 import TweetsActions._
-import User.{Name, Password, _}
 import UsersActions._
-import cats.data.OptionT
 import cats.effect.{Effect, IO}
+import cats.~>
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
 import io.circe.generic.auto._
@@ -27,28 +24,30 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
     "tattletales" // password
   )
 
-  val userDB = Database.doobieDatabase(xa)
-  val tweetsDB = Database.doobieDatabase(xa)
+  implicit val fToStream: F ~> Stream[F, ?] = new (F ~> Stream[F, ?]) {
+    def apply[A](fa: F[A]): Stream[F, A] = Stream.eval(fa)
+  }
 
-  val httpClient: HttpClient[Stream[F, ?], F] = HttpClient.http4sClient[F]
+  val db: Database[F] = Database.doobieDatabase[F](xa)
+
+  val httpClient = HttpClient.http4sClient[F]
 
   val usersActionsDistributor =
-    Distributor.gossip[Stream[F, ?], F, UsersAction](Uri("localhost"), httpClient)
+    Distributor.gossip[Stream[F, ?], F, UsersAction]("localhost", httpClient)
+
   val tweetsActionsDistributor =
-    Distributor.gossip[Stream[F, ?], F, TweetsAction](Uri("localhost"), httpClient)
+    Distributor.gossip[Stream[F, ?], F, TweetsAction]("localhost", httpClient)
 
-  val users = Users.replicated(userDB, usersActionsDistributor)
-  val tweets = Tweets.replicated(tweetsDB, tweetsActionsDistributor)
-
-  val repo = Repo[F](users, tweets)
+  val users = Users.replicated[Stream[F, ?], F](db, usersActionsDistributor, httpClient)
+  val tweets = Tweets.replicated[Stream[F, ?], F](db, tweetsActionsDistributor, httpClient)
 
   val sseClient = SseClient[Stream[F, ?]]
 
-  val replicator = Replicator[F](repo, sseClient.subscribe("Bla"))
+  val replicator = Replicator[F](db, sseClient.subscribe("Bla"))
 
-  val program = (for {
-    user <- OptionT(users.addUser(Name("Tattletales"), Password("1234")))
+  val program = for {
+    user <- users.addUser("Tattletales")
     //tweet <- OptionT(tweets.addTweet(user, Tweet(TweetId(0), UserId(0), TweetContent("Hello World"))))
-  } yield user).value
+  } yield user
 
 }
