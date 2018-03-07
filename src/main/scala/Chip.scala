@@ -1,4 +1,4 @@
-import SseClient.Event
+import Subscriber.Event
 import cats.effect.{Effect, IO}
 import cats.~>
 import doobie.util.transactor.Transactor
@@ -20,7 +20,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         db: Database[F] = Database.doobieDatabase[F](xa)
 
         daemon = GossipDaemon.mock[F](eventQueue, counter)
-        sseClient = SseClient.mock[F](eventQueue)
+        sseClient = Subscriber.mock[F](eventQueue)
 
         users = Users.replicated[Stream[F, ?], F](db, daemon)
         tweets = Tweets.replicated[Stream[F, ?], F](db, daemon)

@@ -1,4 +1,4 @@
-import SseClient.Event
+import Subscriber.Event
 import cats.effect.Effect
 import cats.implicits._
 import io.circe.Decoder

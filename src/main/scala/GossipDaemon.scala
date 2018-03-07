@@ -1,4 +1,4 @@
-import SseClient.Event
+import Subscriber.Event
 import Utils.log
 import cats.effect.Sync
 import fs2.Stream

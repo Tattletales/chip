@@ -1,4 +1,4 @@
-import SseClient.Event
+import Subscriber.Event
 import Utils.log
 import akka.NotUsed
 import akka.actor.ActorSystem
@@ -19,19 +19,19 @@ import io.circe.generic.auto._
 
 import scala.concurrent.ExecutionContext
 
-trait SseClient[F[_]] {
+trait Subscriber[F[_]] {
   def subscribe(uri: String): F[Event]
 }
 
-object SseClient extends SseClientInstances {
+object Subscriber extends SubscriberInstances {
   case class Event(eventType: String, payload: String)
 
-  def apply[F[_]](implicit S: SseClient[F]): SseClient[F] = S
+  def apply[F[_]](implicit S: Subscriber[F]): Subscriber[F] = S
 }
 
-sealed abstract class SseClientInstances {
-  implicit def akka[F[_]: Effect]: SseClient[Stream[F, ?]] =
-    new SseClient[Stream[F, ?]] {
+sealed abstract class SubscriberInstances {
+  implicit def serverSentEvent[F[_]: Effect]: Subscriber[Stream[F, ?]] =
+    new Subscriber[Stream[F, ?]] {
       implicit val system: ActorSystem = ActorSystem()
       implicit val materializer: ActorMaterializer = ActorMaterializer()
       implicit val executionContext: ExecutionContext = system.dispatcher
@@ -62,8 +62,8 @@ sealed abstract class SseClientInstances {
         })
     }
 
-  implicit def mock[F[_]: Sync](eventQueue: Queue[F, Event]): SseClient[Stream[F, ?]] =
-    new SseClient[Stream[F, ?]] {
+  implicit def mock[F[_]: Sync](eventQueue: Queue[F, Event]): Subscriber[Stream[F, ?]] =
+    new Subscriber[Stream[F, ?]] {
       def subscribe(uri: String): Stream[F, Event] =
         eventQueue.dequeue.through(log("SseClient"))
     }

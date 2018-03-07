@@ -1,5 +1,5 @@
 import HandleEvents.{baseCase, inductionStep}
-import SseClient.Event
+import Subscriber.Event
 import TweetsActions.TweetsAction
 import UsersActions.UsersAction
 import Utils.log
