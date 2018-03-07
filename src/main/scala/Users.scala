@@ -19,11 +19,11 @@ sealed abstract class UsersInstances {
   implicit def replicated[F[_]: Monad, G[_]: EntityDecoder[?[_], String]](
       db: Database[G],
       distributor: Distributor[F, UsersAction],
-      httpClient: HttpClient[F, G]
+      daemon: GossipDaemon[F]
   )(implicit gToF: G ~> F): Users[F] = new Users[F] {
     def addUser(name: String): F[User] =
       for {
-        id <- httpClient.get[String]("Bla")
+        id <- daemon.getUniqueId
         user = User(id, name)
         _ <- distributor.share(AddUser(user))
       } yield user

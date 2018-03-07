@@ -1,5 +1,6 @@
 import TweetsActions._
 import UsersActions._
+import org.http4s.circe._
 import cats.effect.{Effect, IO}
 import cats.~>
 import doobie.util.transactor.Transactor
@@ -31,6 +32,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
   val db: Database[F] = Database.doobieDatabase[F](xa)
 
   val httpClient = HttpClient.http4sClient[F]
+  val daemon = GossipDaemon.localhost[Stream[F, ?], F](httpClient)
 
   val usersActionsDistributor =
     Distributor.gossip[Stream[F, ?], F, UsersAction]("localhost", httpClient)
@@ -38,8 +40,8 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
   val tweetsActionsDistributor =
     Distributor.gossip[Stream[F, ?], F, TweetsAction]("localhost", httpClient)
 
-  val users = Users.replicated[Stream[F, ?], F](db, usersActionsDistributor, httpClient)
-  val tweets = Tweets.replicated[Stream[F, ?], F](db, tweetsActionsDistributor, httpClient)
+  val users = Users.replicated[Stream[F, ?], F](db, usersActionsDistributor, daemon)
+  val tweets = Tweets.replicated[Stream[F, ?], F](db, tweetsActionsDistributor, daemon)
 
   val sseClient = SseClient[Stream[F, ?]]
 

@@ -18,7 +18,7 @@ sealed abstract class TweetsInstances {
   implicit def replicated[F[_]: Monad, G[_]: EntityDecoder[?[_], String]](
       db: Database[G],
       distributor: Distributor[F, TweetsAction],
-      httpClient: HttpClient[F, G]
+      daemon: GossipDaemon[F]
   )(implicit gToF: G ~> F): Tweets[F] = new Tweets[F] {
 
     // Retrieve all tweets posted by the User
@@ -31,7 +31,7 @@ sealed abstract class TweetsInstances {
 
     def addTweet(user: User, tweetContent: String): F[Tweet] =
       for {
-        tweetId <- httpClient.get[String]("Bla")
+        tweetId <- daemon.getUniqueId
         tweet = Tweet(tweetId, user.id, tweetContent)
         _ <- distributor.share(AddTweet(tweet))
       } yield tweet
