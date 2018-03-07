@@ -1,11 +1,9 @@
-import TweetsActions._
-import UsersActions._
-import org.http4s.circe._
+import SseClient.Event
 import cats.effect.{Effect, IO}
 import cats.~>
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
-import io.circe.generic.auto._
+import io.circe.Json
 import fs2._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -15,7 +13,26 @@ object ChipApp extends Chip[IO]
 class Chip[F[_]: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
-      Stream(program.map(_ => ()), replicator).join(2).drain ++ Stream.emit(ExitCode.Success)
+      for {
+        eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
+        counter <- Stream.eval(async.Ref[F, Int](0))
+
+        db: Database[F] = Database.doobieDatabase[F](xa)
+
+        daemon = GossipDaemon.mock[F](eventQueue, counter)
+        sseClient = SseClient.mock[F](eventQueue)
+
+        users = Users.replicated[Stream[F, ?], F](db, daemon)
+        tweets = Tweets.replicated[Stream[F, ?], F](db, daemon)
+
+        replicator = Replicator[F](db, sseClient.subscribe("Bla"))
+
+        // Program
+        user = users.addUser("Tattletales")
+        // ---
+
+        ec <- Stream(user.map(_ => ()), replicator).join(2).drain ++ Stream.emit(ExitCode.Success)
+      } yield ec
     }
 
   val xa: Transactor[F] = Transactor.fromDriverManager[F](
@@ -28,28 +45,4 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
   implicit val fToStream: F ~> Stream[F, ?] = new (F ~> Stream[F, ?]) {
     def apply[A](fa: F[A]): Stream[F, A] = Stream.eval(fa)
   }
-
-  val db: Database[F] = Database.doobieDatabase[F](xa)
-
-  val httpClient = HttpClient.http4sClient[F]
-  val daemon = GossipDaemon.localhost[Stream[F, ?], F](httpClient)
-
-  val usersActionsDistributor =
-    Distributor.gossip[Stream[F, ?], F, UsersAction]("localhost", httpClient)
-
-  val tweetsActionsDistributor =
-    Distributor.gossip[Stream[F, ?], F, TweetsAction]("localhost", httpClient)
-
-  val users = Users.replicated[Stream[F, ?], F](db, usersActionsDistributor, daemon)
-  val tweets = Tweets.replicated[Stream[F, ?], F](db, tweetsActionsDistributor, daemon)
-
-  val sseClient = SseClient[Stream[F, ?]]
-
-  val replicator = Replicator[F](db, sseClient.subscribe("Bla"))
-
-  val program = for {
-    user <- users.addUser("Tattletales")
-    //tweet <- OptionT(tweets.addTweet(user, Tweet(TweetId(0), UserId(0), TweetContent("Hello World"))))
-  } yield user
-
 }

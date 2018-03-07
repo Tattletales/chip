@@ -3,6 +3,7 @@ import cats.effect.Effect
 import cats.implicits._
 import cats.{Monad, ~>}
 import doobie.implicits._
+import io.circe.generic.auto._
 import org.http4s.EntityDecoder
 
 trait Users[F[_]] {
@@ -18,14 +19,13 @@ object Users extends UsersInstances {
 sealed abstract class UsersInstances {
   implicit def replicated[F[_]: Monad, G[_]: EntityDecoder[?[_], String]](
       db: Database[G],
-      distributor: Distributor[F, UsersAction],
       daemon: GossipDaemon[F]
   )(implicit gToF: G ~> F): Users[F] = new Users[F] {
     def addUser(name: String): F[User] =
       for {
         id <- daemon.getUniqueId
         user = User(id, name)
-        _ <- distributor.share(AddUser(user))
+        _ <- daemon.send[UsersAction](AddUser(user))
       } yield user
 
     def searchUser(name: String): F[List[User]] =
@@ -42,14 +42,16 @@ object UsersActions {
   case class AddUser(user: User) extends UsersAction
   //case class RemoveUser(user: User) extends UsersAction
 
-  implicit val namedUsersAction: Named[UsersAction] = new Named[UsersAction] {
-    val name: String = "Users"
+  implicit val namedUsersAction: EventTypable[UsersAction] = new EventTypable[UsersAction] {
+    val eventType: String = "Users"
   }
 
   implicit val replicableUsersAction: Replicable[UsersAction] =
     new Replicable[UsersAction] {
       def replicate[F[_]: Effect](db: Database[F]): UsersAction => F[Unit] = {
-        case AddUser(user) => db.insert(sql"""
+        case AddUser(user) =>
+          println("Replicating...")
+          db.insert(sql"""
            INSERT INTO users (name, password)
            VALUES (${user.id}, ${user.name})
        """)

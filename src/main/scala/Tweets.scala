@@ -3,6 +3,7 @@ import cats.effect.Effect
 import cats.implicits._
 import cats.{Monad, ~>}
 import doobie.implicits._
+import io.circe.generic.auto._
 import org.http4s.EntityDecoder
 
 trait Tweets[F[_]] {
@@ -17,7 +18,6 @@ object Tweets extends TweetsInstances {
 sealed abstract class TweetsInstances {
   implicit def replicated[F[_]: Monad, G[_]: EntityDecoder[?[_], String]](
       db: Database[G],
-      distributor: Distributor[F, TweetsAction],
       daemon: GossipDaemon[F]
   )(implicit gToF: G ~> F): Tweets[F] = new Tweets[F] {
 
@@ -33,7 +33,7 @@ sealed abstract class TweetsInstances {
       for {
         tweetId <- daemon.getUniqueId
         tweet = Tweet(tweetId, user.id, tweetContent)
-        _ <- distributor.share(AddTweet(tweet))
+        _ <- daemon.send[TweetsAction](AddTweet(tweet))
       } yield tweet
   }
 }
@@ -42,9 +42,9 @@ object TweetsActions {
   sealed trait TweetsAction
   case class AddTweet(tweet: Tweet) extends TweetsAction
 
-  implicit val namedTweetsAction: Named[TweetsAction] =
-    new Named[TweetsAction] {
-      val name: String = "Tweets"
+  implicit val namedTweetsAction: EventTypable[TweetsAction] =
+    new EventTypable[TweetsAction] {
+      val eventType: String = "Tweets"
     }
 
   implicit val replicableTweetsAction: Replicable[TweetsAction] =
