@@ -1,5 +1,4 @@
 import Subscriber.Event
-import Utils.log
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -9,13 +8,9 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
-import cats.effect.{Async, Effect, Sync}
+import cats.effect.{Async, Effect}
 import fs2.Stream
-import fs2.async.mutable.Queue
 import fs2.interop.reactivestreams._
-import io.circe.Json
-import io.circe.fs2._
-import io.circe.generic.auto._
 
 import scala.concurrent.ExecutionContext
 
@@ -54,17 +49,10 @@ sealed abstract class SubscriberInstances {
                     case None =>
                       Stream
                         .raiseError[Event](
-                          throw new NoSuchElementException("Missing event-type.")
-                        )
+                          new NoSuchElementException(s"Missing event-type for payload ${sse.data}"))
                 }
               )
           } yield fs2Stream).onComplete(t => cb(t.toEither))
         })
     }
-
-  //implicit def mock[F[_]: Sync](eventQueue: Queue[F, Event]): Subscriber[Stream[F, ?]] =
-  //  new Subscriber[Stream[F, ?]] {
-  //    def subscribe(uri: String): Stream[F, Event] =
-  //      eventQueue.dequeue.through(log("SseClient"))
-  //  }
 }
