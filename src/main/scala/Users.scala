@@ -50,7 +50,6 @@ object UsersActions {
     new Replicable[UsersAction] {
       def replicate[F[_]: Effect](db: Database[F]): UsersAction => F[Unit] = {
         case AddUser(user) =>
-          println("Replicating...")
           db.insert(sql"""
            INSERT INTO users (name, password)
            VALUES (${user.id}, ${user.name})
