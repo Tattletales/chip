@@ -4,7 +4,6 @@ import cats.effect.Sync
 import fs2.Stream
 import fs2.async.Ref
 import fs2.async.mutable.Queue
-import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import org.http4s.{EntityDecoder, EntityEncoder}
@@ -12,6 +11,7 @@ import org.http4s.{EntityDecoder, EntityEncoder}
 trait GossipDaemon[F[_]] {
   def getUniqueId: F[String]
   def send[Message: Encoder: EventTypable](m: Message): F[Unit]
+  def subscribe: F[Event] // TODO should be val? no need to create new stream for every call
 }
 
 object GossipDaemon extends GossipDaemonInstances {
@@ -20,7 +20,8 @@ object GossipDaemon extends GossipDaemonInstances {
 
 sealed abstract class GossipDaemonInstances {
   implicit def localhost[F[_], G[_]: EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
-      httpClient: HttpClient[F, G]): GossipDaemon[F] =
+      httpClient: HttpClient[F, G],
+      subscriber: Subscriber[F]): GossipDaemon[F] =
     new GossipDaemon[F] {
       private val root = "localhost:2018"
 
@@ -28,6 +29,8 @@ sealed abstract class GossipDaemonInstances {
 
       def send[Message: Encoder: EventTypable](m: Message): F[Unit] =
         httpClient.unsafePostAndIgnore(s"$root/gossip", m.asJson)
+
+      def subscribe: F[Event] = subscriber.subscribe(s"$root/events")
     }
 
   implicit def mock[F[_]: Sync](eventQueue: Queue[F, Event],
@@ -45,5 +48,7 @@ sealed abstract class GossipDaemonInstances {
           _ <- Stream.eval(counter.modify(_ + 1))
           uid <- Stream.eval(counter.get)
         } yield uid.toString
+
+      def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
     }
 }

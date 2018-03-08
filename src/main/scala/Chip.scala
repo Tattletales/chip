@@ -20,12 +20,11 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         db: Database[F] = Database.doobieDatabase[F](xa)
 
         daemon = GossipDaemon.mock[F](eventQueue, counter)
-        sseClient = Subscriber.mock[F](eventQueue)
 
         users = Users.replicated[Stream[F, ?], F](db, daemon)
         tweets = Tweets.replicated[Stream[F, ?], F](db, daemon)
 
-        replicator = Replicator[F](db, sseClient.subscribe("Bla"))
+        replicator = Replicator[F](db, daemon.subscribe)
 
         // Program
         user = users.addUser("Tattletales")

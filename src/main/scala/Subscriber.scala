@@ -62,9 +62,9 @@ sealed abstract class SubscriberInstances {
         })
     }
 
-  implicit def mock[F[_]: Sync](eventQueue: Queue[F, Event]): Subscriber[Stream[F, ?]] =
-    new Subscriber[Stream[F, ?]] {
-      def subscribe(uri: String): Stream[F, Event] =
-        eventQueue.dequeue.through(log("SseClient"))
-    }
+  //implicit def mock[F[_]: Sync](eventQueue: Queue[F, Event]): Subscriber[Stream[F, ?]] =
+  //  new Subscriber[Stream[F, ?]] {
+  //    def subscribe(uri: String): Stream[F, Event] =
+  //      eventQueue.dequeue.through(log("SseClient"))
+  //  }
 }
