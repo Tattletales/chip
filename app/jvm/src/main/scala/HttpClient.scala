@@ -2,6 +2,7 @@ import cats.data.OptionT
 import cats.effect._
 import cats.{Applicative, Monad}
 import fs2.Stream
+import org.http4s.client.Client
 import org.http4s.client.blaze.Http1Client
 import org.http4s.{Uri => Http4sUri, _}
 

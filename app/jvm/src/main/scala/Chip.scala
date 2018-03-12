@@ -37,8 +37,8 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
   val xa: Transactor[F] = Transactor.fromDriverManager[F](
     "org.postgresql.Driver", // driver classname
     "jdbc:postgresql:chip_db", // connect URL (driver-specific)
-    "tattletales", // user
-    "tattletales" // password
+    "florian", // user
+    "mJ9da5mPHniKrsr8KeYx" // password
   )
 
   implicit val fToStream: F ~> Stream[F, ?] = new (F ~> Stream[F, ?]) {
