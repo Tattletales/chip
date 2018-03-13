@@ -25,7 +25,7 @@ object Client {
       println(s"Sending username $username")
 
       Ajax
-        .post(
+        .get(
           s"$root:$port/login",
           username
         )

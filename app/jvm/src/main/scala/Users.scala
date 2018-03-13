@@ -58,7 +58,7 @@ object UsersActions {
       def replicate[F[_]: Effect](db: Database[F]): UsersAction => F[Unit] = {
         case AddUser(user) =>
           db.insert(sql"""
-           INSERT INTO users (name, password)
+           INSERT INTO users (id, name)
            VALUES (${user.id}, ${user.name})
        """)
       }

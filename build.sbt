@@ -28,7 +28,6 @@ val app = crossProject.settings(
     baseDirectory.value  / "shared" / "main" / "scala",
   libraryDependencies ++= Seq(
     "com.lihaoyi" %%% "scalatags" % "0.6.2",
-    //"com.lihaoyi" %%% "upickle" % "0.4.4",
     "io.circe" %%% "circe-core" % circeVersion,
     "io.circe" %%% "circe-generic" % circeVersion,
     "io.circe" %%% "circe-literal" % circeVersion,
