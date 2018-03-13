@@ -43,8 +43,8 @@ sealed abstract class GossipDaemonInstances {
       def send[Message: Encoder: EventTypable](m: Message): F[Unit] =
         eventQueue.enqueue1(Event(implicitly[EventTypable[Message]].eventType, m.asJson.spaces2))
 
-      def getUniqueId: F[String] =
-        (counter.modify(_ + 1) >> counter.get).map(_.toString)
+      def getUniqueId: F[String] = counter.get.map(_.toString)
+        //(counter.modify(_ + 1) >> counter.get).map(_.toString)
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
     }
