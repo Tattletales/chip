@@ -1,6 +1,8 @@
 import Subscriber.Event
 import Utils.log
+import cats.Monad
 import cats.effect.Sync
+import cats.implicits._
 import fs2.Stream
 import fs2.async.Ref
 import fs2.async.mutable.Queue
@@ -11,7 +13,8 @@ import org.http4s.{EntityDecoder, EntityEncoder}
 trait GossipDaemon[F[_]] {
   def getUniqueId: F[String]
   def send[Message: Encoder: EventTypable](m: Message): F[Unit]
-  def subscribe: F[Event] // TODO should be val? no need to create new stream for every call
+  def subscribe
+    : Stream[F, Event] // TODO should be val? no need to create new stream for every call
 }
 
 object GossipDaemon extends GossipDaemonInstances {
@@ -19,8 +22,8 @@ object GossipDaemon extends GossipDaemonInstances {
 }
 
 sealed abstract class GossipDaemonInstances {
-  implicit def localhost[F[_], G[_]: EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
-      httpClient: HttpClient[F, G],
+  implicit def localhost[F[_]: EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
+      httpClient: HttpClient[F],
       subscriber: Subscriber[F]): GossipDaemon[F] =
     new GossipDaemon[F] {
       private val root = "localhost:2018"
@@ -30,24 +33,18 @@ sealed abstract class GossipDaemonInstances {
       def send[Message: Encoder: EventTypable](m: Message): F[Unit] =
         httpClient.unsafePostAndIgnore(s"$root/gossip", m.asJson)
 
-      def subscribe: F[Event] = subscriber.subscribe(s"$root/events")
+      def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
     }
 
-  implicit def mock[F[_]: Sync](eventQueue: Queue[F, Event],
-                                counter: Ref[F, Int]): GossipDaemon[Stream[F, ?]] =
-    new GossipDaemon[Stream[F, ?]] {
+  implicit def mock[F[_]: Monad: Sync](eventQueue: Queue[F, Event],
+                                       counter: Ref[F, Int]): GossipDaemon[F] =
+    new GossipDaemon[F] {
 
-      def send[Message: Encoder: EventTypable](m: Message): Stream[F, Unit] =
-        Stream
-          .eval(
-            eventQueue.enqueue1(
-              Event(implicitly[EventTypable[Message]].eventType, m.asJson.spaces2)))
+      def send[Message: Encoder: EventTypable](m: Message): F[Unit] =
+        eventQueue.enqueue1(Event(implicitly[EventTypable[Message]].eventType, m.asJson.spaces2))
 
-      def getUniqueId: Stream[F, String] =
-        for {
-          _ <- Stream.eval(counter.modify(_ + 1))
-          uid <- Stream.eval(counter.get)
-        } yield uid.toString
+      def getUniqueId: F[String] =
+        (counter.modify(_ + 1) >> counter.get).map(_.toString)
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
     }

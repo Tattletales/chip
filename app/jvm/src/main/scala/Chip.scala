@@ -1,9 +1,7 @@
 import Subscriber.Event
 import cats.effect.{Effect, IO}
-import cats.~>
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
-import io.circe.Json
 import fs2._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -21,13 +19,13 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
 
         daemon = GossipDaemon.mock[F](eventQueue, counter)
 
-        users = Users.replicated[Stream[F, ?], F](db, daemon)
-        tweets = Tweets.replicated[Stream[F, ?], F](db, daemon)
+        users = Users.replicated[F](db, daemon)
+        tweets = Tweets.replicated[F](db, daemon)
 
         replicator = Replicator[F](db, daemon.subscribe)
 
         // Program
-        user = users.addUser("Tattletales")
+        user = Stream.eval(users.addUser("Tattletales"))
         // ---
 
         ec <- Stream(user.map(_ => ()), replicator).join(2).drain ++ Stream.emit(ExitCode.Success)
@@ -41,7 +39,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
     "mJ9da5mPHniKrsr8KeYx" // password
   )
 
-  implicit val fToStream: F ~> Stream[F, ?] = new (F ~> Stream[F, ?]) {
-    def apply[A](fa: F[A]): Stream[F, A] = Stream.eval(fa)
-  }
+  //implicit val fToStream: F ~> Stream[F, ?] = new (F ~> Stream[F, ?]) {
+  //  def apply[A](fa: F[A]): Stream[F, A] = Stream.eval(fa)
+  //}
 }

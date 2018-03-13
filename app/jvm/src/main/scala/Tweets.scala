@@ -1,7 +1,7 @@
 import TweetsActions.{AddTweet, TweetsAction}
+import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
-import cats.{Monad, ~>}
 import doobie.implicits._
 import io.circe.generic.auto._
 import org.http4s.EntityDecoder
@@ -16,18 +16,18 @@ object Tweets extends TweetsInstances {
 }
 
 sealed abstract class TweetsInstances {
-  implicit def replicated[F[_]: Monad, G[_]: EntityDecoder[?[_], String]](
-      db: Database[G],
+  implicit def replicated[F[_]: Monad: EntityDecoder[?[_], String]](
+      db: Database[F],
       daemon: GossipDaemon[F]
-  )(implicit gToF: G ~> F): Tweets[F] = new Tweets[F] {
+  ): Tweets[F] = new Tweets[F] {
 
     // Retrieve all tweets posted by the User
     def getTweets(user: User): F[List[Tweet]] =
-      gToF(db.query[Tweet](sql"""
+      db.query[Tweet](sql"""
            SELECT *
            FROM tweets
            WHERE user_id = ${user.id}
-         """))
+         """)
 
     def addTweet(user: User, tweetContent: String): F[Tweet] =
       for {

@@ -15,7 +15,7 @@ import fs2.interop.reactivestreams._
 import scala.concurrent.ExecutionContext
 
 trait Subscriber[F[_]] {
-  def subscribe(uri: String): F[Event]
+  def subscribe(uri: String): Stream[F, Event]
 }
 
 object Subscriber extends SubscriberInstances {
@@ -25,8 +25,8 @@ object Subscriber extends SubscriberInstances {
 }
 
 sealed abstract class SubscriberInstances {
-  implicit def serverSentEvent[F[_]: Effect]: Subscriber[Stream[F, ?]] =
-    new Subscriber[Stream[F, ?]] {
+  implicit def serverSentEvent[F[_]: Effect]: Subscriber[F] =
+    new Subscriber[F] {
       implicit val system: ActorSystem = ActorSystem()
       implicit val materializer: ActorMaterializer = ActorMaterializer()
       implicit val executionContext: ExecutionContext = system.dispatcher
@@ -48,8 +48,8 @@ sealed abstract class SubscriberInstances {
                     case Some(eventType) => Stream.emit(Event(eventType, sse.data))
                     case None =>
                       Stream
-                        .raiseError[Event](
-                          new NoSuchElementException(s"Missing event-type for payload ${sse.data}"))
+                        .raiseError[Event](new NoSuchElementException(
+                          s"Missing event-type for payload ${sse.data}"))
                 }
               )
           } yield fs2Stream).onComplete(t => cb(t.toEither))

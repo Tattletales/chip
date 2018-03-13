@@ -1,7 +1,7 @@
 import UsersActions._
+import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
-import cats.{Monad, ~>}
 import doobie.implicits._
 import io.circe.generic.auto._
 import org.http4s.EntityDecoder
@@ -10,6 +10,7 @@ trait Users[F[_]] {
   def addUser(name: String): F[User]
   //def removeUser(user: String): F[Unit]
   def searchUser(name: String): F[List[User]]
+  def getUser(id: String): F[Option[User]]
 }
 
 object Users extends UsersInstances {
@@ -17,10 +18,10 @@ object Users extends UsersInstances {
 }
 
 sealed abstract class UsersInstances {
-  implicit def replicated[F[_]: Monad, G[_]: EntityDecoder[?[_], String]](
-      db: Database[G],
+  implicit def replicated[F[_]: Monad: EntityDecoder[?[_], String]](
+      db: Database[F],
       daemon: GossipDaemon[F]
-  )(implicit gToF: G ~> F): Users[F] = new Users[F] {
+  ): Users[F] = new Users[F] {
     def addUser(name: String): F[User] =
       for {
         id <- daemon.getUniqueId
@@ -29,11 +30,13 @@ sealed abstract class UsersInstances {
       } yield user
 
     def searchUser(name: String): F[List[User]] =
-      gToF(db.query[User](sql"""
+      db.query[User](sql"""
          SELECT *
          FROM users
          WHERE name = $name
-       """))
+       """)
+
+    def getUser(id: String): F[Option[User]] = ???
   }
 }
 
