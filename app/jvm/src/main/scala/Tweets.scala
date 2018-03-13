@@ -8,6 +8,7 @@ import org.http4s.EntityDecoder
 
 trait Tweets[F[_]] {
   def getTweets(user: User): F[List[Tweet]]
+  def getAllTweets: F[List[Tweet]]
   def addTweet(user: User, tweetContent: String): F[Tweet]
 }
 
@@ -27,6 +28,11 @@ sealed abstract class TweetsInstances {
            SELECT *
            FROM tweets
            WHERE user_id = ${user.id}
+         """)
+
+    def getAllTweets: F[List[Tweet]] = db.query[Tweet](sql"""
+           SELECT *
+           FROM tweets
          """)
 
     def addTweet(user: User, tweetContent: String): F[Tweet] =

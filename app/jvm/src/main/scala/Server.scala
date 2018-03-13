@@ -80,6 +80,8 @@ object Server {
           } yield postedTweets
 
           Ok(response.map(_.asJson))
+
+        case GET -> Root / "getAllTweets" => Ok(tweets.getAllTweets.map(_.asJson))
       }
 
       private val write: AuthedService[User, F] = AuthedService {
@@ -88,8 +90,10 @@ object Server {
 
           Ok(f.map(_.asJson))
       }
+      
+      private val loginService: HttpService[F] = Kleisli(logIn.run.andThen(b => OptionT.liftF(b)))
 
-      private val service: HttpService[F] = middleware(write) <+> read
+      private val service: HttpService[F] = middleware(write) <+> read <+> loginService
 
       val run: Stream[F, ExitCode] = {
         BlazeBuilder[F]
