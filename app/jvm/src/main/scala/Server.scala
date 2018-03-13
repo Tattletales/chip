@@ -1,6 +1,7 @@
 import java.time._
 
-import cats.data.{Kleisli, OptionT}
+import cats.Applicative
+import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.Effect
 import cats.implicits._
 import fs2.Stream
@@ -17,35 +18,43 @@ import org.reactormonk.{CryptoBits, PrivateKey}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 trait Server[F[_]] extends Http4sDsl[F] {
-  val server: Stream[F, ExitCode]
+  val run: Stream[F, ExitCode]
 }
 
 object Server {
-  def simple[F[_]: Effect: EntityEncoder[?[_], F[Json]]](users: Users[F],
-                                                         tweets: Tweets[F]): Server[F] =
+  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]]](users: Users[F],
+                                                         tweets: Tweets[F],
+                                                         daemon: GossipDaemon[F]): Server[F] =
     new Server[F] {
       private val key = PrivateKey(
         scala.io.Codec.toUTF8(scala.util.Random.alphanumeric.take(20).mkString("")))
       private val crypto = CryptoBits(key)
       private val clock = Clock.systemUTC
 
-      def verifyLogin(r: Request[F]): F[Either[String, User]] = ???
+      private def verifyLogin(r: Request[F]): F[User] = r match {
+        case GET -> Root / "login" / userName =>
+          for {
+            id <- daemon.getUniqueId
+            user <- users.getUser(id).flatMap {
+              case Some(user) => implicitly[Applicative[F]].pure(user)
+              case None       => users.addUser(userName)
+            }
+          } yield user
+      }
 
-      val logIn: Kleisli[F, Request[F], Response[F]] = Kleisli { request =>
-        verifyLogin(request).flatMap {
-          case Left(error) => Forbidden(error)
-          case Right(user) =>
-            val message = crypto.signToken(user.id, clock.millis.toString)
-            Ok("Logged in!").map(_.addCookie(Cookie("authcookie", message)))
+      private val logIn: Kleisli[F, Request[F], Response[F]] = Kleisli { request =>
+        verifyLogin(request).flatMap { user =>
+          val message = crypto.signToken(user.id, clock.millis.toString)
+          Ok("Logged in!").map(_.addCookie(Cookie("authcookie", message)))
         }
       }
 
-      def retrieveUser: Kleisli[F, String, Either[String, User]] =
+      private def retrieveUser: Kleisli[F, String, Either[String, User]] =
         Kleisli { id =>
           users.getUser(id).map(_.toRight(s"Could not retrieve user with id $id"))
         }
 
-      val authUser: Kleisli[F, Request[F], Either[String, User]] = Kleisli { request =>
+      private val authUser: Kleisli[F, Request[F], Either[String, User]] = Kleisli { request =>
         val message = for {
           header <- headers.Cookie.from(request.headers).toRight("Cookie parsing error")
           cookie <- header.values.toList
@@ -57,13 +66,13 @@ object Server {
         message.traverse(retrieveUser.run).map(_.fold(Left(_), e => e))
       }
 
-      val onFailure: AuthedService[String, F] = Kleisli { request =>
+      private val onFailure: AuthedService[String, F] = Kleisli { request =>
         OptionT.liftF(Forbidden(request.authInfo))
       }
 
-      val middleware: AuthMiddleware[F, User] = AuthMiddleware(authUser, onFailure)
+      private val middleware: AuthMiddleware[F, User] = AuthMiddleware(authUser, onFailure)
 
-      val read: HttpService[F] = HttpService {
+      private val read: HttpService[F] = HttpService {
         case GET -> Root / "getTweets" / userName =>
           val response = for {
             user <- users.searchUser(userName).map(_.head)
@@ -73,16 +82,16 @@ object Server {
           Ok(response.map(_.asJson))
       }
 
-      val write: AuthedService[User, F] = AuthedService {
+      private val write: AuthedService[User, F] = AuthedService {
         case PUT -> Root / "postTweet" / body as user =>
           val f = tweets.addTweet(user, body)
 
           Ok(f.map(_.asJson))
       }
 
-      val service: HttpService[F] = middleware(write) <+> read
+      private val service: HttpService[F] = middleware(write) <+> read
 
-      val server: Stream[F, ExitCode] = {
+      val run: Stream[F, ExitCode] = {
         BlazeBuilder[F]
           .bindHttp(8080, "localhost")
           .mountService(service, "/")

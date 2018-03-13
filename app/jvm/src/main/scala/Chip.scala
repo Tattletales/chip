@@ -3,6 +3,7 @@ import cats.effect.{Effect, IO}
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
 import fs2._
+import org.http4s.circe._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -23,12 +24,14 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         tweets = Tweets.replicated[F](db, daemon)
 
         replicator = Replicator[F](db, daemon.subscribe)
+        
+        server = Server.authed(users, tweets, daemon).run
 
         // Program
         user = Stream.eval(users.addUser("Tattletales"))
         // ---
 
-        ec <- Stream(user.map(_ => ()), replicator).join(2).drain ++ Stream.emit(ExitCode.Success)
+        ec <- Stream(user.map(_ => ()), replicator, server).join(3).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 
