@@ -28,13 +28,21 @@ val app = crossProject.settings(
     baseDirectory.value  / "shared" / "main" / "scala",
   libraryDependencies ++= Seq(
     "com.lihaoyi" %%% "scalatags" % "0.6.2",
-    "com.lihaoyi" %%% "upickle" % "0.4.4"
+    //"com.lihaoyi" %%% "upickle" % "0.4.4",
+    "io.circe" %%% "circe-core" % circeVersion,
+    "io.circe" %%% "circe-generic" % circeVersion,
+    "io.circe" %%% "circe-literal" % circeVersion,
+    "io.circe" %%% "circe-parser" % circeVersion
   ),
   scalaVersion := "2.12.4"
 ).jsSettings(
+  skip in packageJSDependencies := false,
   libraryDependencies ++= Seq(
-    "org.scala-js" %%% "scalajs-dom" % "0.9.1"
-  )
+    "org.scala-js" %%% "scalajs-dom" % "0.9.1",
+    "be.doeraene" %%% "scalajs-jquery" % "0.9.2"
+  ),
+  scalaJSUseMainModuleInitializer := true,
+  jsDependencies += "org.webjars" % "jquery" % "2.1.4" / "2.1.4/jquery.js"
 ).jvmSettings(
   libraryDependencies ++= Seq(
     compilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
@@ -51,10 +59,6 @@ val app = crossProject.settings(
     "org.http4s" %% "http4s-blaze-server" % http4sVersion,
     "org.http4s" %% "http4s-blaze-client" % http4sVersion,
     "org.http4s" %% "http4s-circe" % http4sVersion,
-    "io.circe" %% "circe-core" % circeVersion,
-    "io.circe" %% "circe-generic" % circeVersion,
-    "io.circe" %% "circe-literal" % circeVersion,
-    "io.circe" %% "circe-parser" % circeVersion,
     "org.http4s" %% "http4s-circe" % circeVersion,
     "io.circe" % "circe-fs2_2.12" % "0.9.0",
     "com.chuusai" %% "shapeless" % "2.3.3",
