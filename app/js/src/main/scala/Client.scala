@@ -2,9 +2,10 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
 import org.scalajs.dom.ext.Ajax
-import org.scalajs.jquery.jQuery
+import org.scalajs.jquery.{JQueryAjaxSettings, JQueryXHR, jQuery}
 
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 case class User(id: String, name: String)
@@ -24,19 +25,30 @@ object Client {
       val username: String = jQuery("#username").value().toString
       println(s"Sending username $username")
 
-      Ajax
-        .get(
-          s"$root:$port/login",
-          username
-        )
-        .foreach { xhr =>
-          decode[User](xhr.responseText) match {
-            case Left(err) =>
-              println(err)
-            case Right(user) =>
-              startTweeting(user)
+      jQuery.ajax(
+        js.Dynamic.literal(
+          `type` = "GET",
+          url = s"$root:$port/login/$username",
+          data = "",
+          success = { (data: js.Any, textStatus: String, xhr: JQueryXHR) =>
+            println("Success !")
+
+            decode[User](xhr.responseText) match {
+              case Left(err) =>
+                println(err)
+              case Right(user) =>
+                startTweeting(user)
+            }
+          },
+
+          error = { (xhr: JQueryXHR, textStatus: String, errorThrown: String) =>
+            println("Failure !")
+            println(xhr.status)
+            println(textStatus)
           }
-        }
+        ).asInstanceOf[JQueryAjaxSettings]
+      )
+
       false
     })
   }
