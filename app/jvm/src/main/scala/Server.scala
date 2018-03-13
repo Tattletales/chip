@@ -1,7 +1,8 @@
+import java.io.File
 import java.time._
 
 import cats.Applicative
-import cats.data.{EitherT, Kleisli, OptionT}
+import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
 import fs2.Stream
@@ -9,15 +10,17 @@ import fs2.StreamApp.ExitCode
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
-import org.http4s.implicits._
+import org.http4s.CacheDirective._
+import org.http4s.MediaType._
 import org.http4s._
 import org.http4s.dsl.Http4sDsl
+import org.http4s.headers.{Cookie => _, _}
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.blaze.BlazeBuilder
 import org.reactormonk.{CryptoBits, PrivateKey}
+import scalatags.Text.all._
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scalatags.Text.all._
 
 trait Server[F[_]] extends Http4sDsl[F] {
   val run: Stream[F, ExitCode]
@@ -51,11 +54,11 @@ object Server {
             ),
             script(
               `type` := "text/javascript",
-              src := "./app/js/target/scala-2.12/app-jsdeps.js"
+              src := "js/app-jsdeps.js"
             ),
             script(
               `type` := "text/javascript",
-              src := "./app/js/target/scala-2.12/app-fastopt.js"
+              src := "js/app-fastopt.js"
             )
           )
         ).render
@@ -98,6 +101,11 @@ object Server {
       private val middleware: AuthMiddleware[F, User] = AuthMiddleware(authUser, onFailure)
 
       private val read: HttpService[F] = HttpService {
+        case GET -> Root =>
+          Ok(page).map(
+            _.withContentType(`Content-Type`(`text/html`, Charset.`UTF-8`))
+              .putHeaders(`Cache-Control`(NonEmptyList.of(`no-cache`())))
+          )
         case GET -> Root / "getTweets" / userName =>
           val response = for {
             user <- users.searchUser(userName).map(_.head)
@@ -107,6 +115,11 @@ object Server {
           Ok(response.map(_.asJson))
 
         case GET -> Root / "getAllTweets" => Ok(tweets.getAllTweets.map(_.asJson))
+
+        case request @ GET -> Root / "js" / file ~ "js" =>
+          StaticFile
+            .fromFile(new File(s"app/js/target/scala-2.12/$file.js"), Some(request))
+            .getOrElseF(NotFound())
       }
 
       private val write: AuthedService[User, F] = AuthedService {
@@ -116,7 +129,7 @@ object Server {
           Ok(f.map(_.asJson))
       }
 
-      private val service: HttpService[F] = login <+> read <+> middleware(write)
+      private val service: HttpService[F] = read <+> login <+> middleware(write)
 
       val run: Stream[F, ExitCode] = {
         BlazeBuilder[F]
