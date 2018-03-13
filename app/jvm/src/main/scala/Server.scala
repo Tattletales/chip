@@ -17,6 +17,7 @@ import org.http4s.server.blaze.BlazeBuilder
 import org.reactormonk.{CryptoBits, PrivateKey}
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scalatags.Text.all._
 
 trait Server[F[_]] extends Http4sDsl[F] {
   val run: Stream[F, ExitCode]
@@ -31,6 +32,34 @@ object Server {
         scala.io.Codec.toUTF8(scala.util.Random.alphanumeric.take(20).mkString("")))
       private val crypto = CryptoBits(key)
       private val clock = Clock.systemUTC
+
+      val page = {
+        html(
+          head(
+            meta(
+              charset := "UTF-8",
+              title := "Chip chip!",
+              link(
+                rel := "stylesheet",
+                href := "https://unpkg.com/purecss@1.0.0/build/pure-min.css"
+              )
+            )
+          ),
+          body(
+            div(
+              id := "app-contents"
+            ),
+            script(
+              `type` := "text/javascript",
+              src := "./app/js/target/scala-2.12/app-jsdeps.js"
+            ),
+            script(
+              `type` := "text/javascript",
+              src := "./app/js/target/scala-2.12/app-fastopt.js"
+            )
+          )
+        ).render
+      }
 
       private val login: HttpService[F] = HttpService {
         case GET -> Root / "login" / userName =>
