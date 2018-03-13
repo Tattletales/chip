@@ -9,6 +9,7 @@ import fs2.StreamApp.ExitCode
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
+import org.http4s.implicits._
 import org.http4s._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.AuthMiddleware
@@ -31,7 +32,7 @@ object Server {
       private val crypto = CryptoBits(key)
       private val clock = Clock.systemUTC
 
-      private def verifyLogin(r: Request[F]): F[User] = r match {
+      private val login: HttpService[F] = HttpService {
         case GET -> Root / "login" / userName =>
           for {
             id <- daemon.getUniqueId
@@ -39,14 +40,9 @@ object Server {
               case Some(user) => implicitly[Applicative[F]].pure(user)
               case None       => users.addUser(userName)
             }
-          } yield user
-      }
-
-      private val logIn: Kleisli[F, Request[F], Response[F]] = Kleisli { request =>
-        verifyLogin(request).flatMap { user =>
-          val message = crypto.signToken(user.id, clock.millis.toString)
-          Ok("Logged in!").map(_.addCookie(Cookie("authcookie", message)))
-        }
+            message = crypto.signToken(user.id, clock.millis.toString)
+            response <- Ok("Logged in!").map(_.addCookie(Cookie("authcookie", message)))
+          } yield response
       }
 
       private def retrieveUser: Kleisli[F, String, Either[String, User]] =
@@ -90,10 +86,8 @@ object Server {
 
           Ok(f.map(_.asJson))
       }
-      
-      private val loginService: HttpService[F] = Kleisli(logIn.run.andThen(b => OptionT.liftF(b)))
 
-      private val service: HttpService[F] = middleware(write) <+> read <+> loginService
+      private val service: HttpService[F] = login <+> read <+> middleware(write)
 
       val run: Stream[F, ExitCode] = {
         BlazeBuilder[F]
