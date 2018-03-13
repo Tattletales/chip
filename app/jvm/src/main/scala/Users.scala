@@ -36,7 +36,11 @@ sealed abstract class UsersInstances {
          WHERE name = $name
        """)
 
-    def getUser(id: String): F[Option[User]] = ???
+    def getUser(id: String): F[Option[User]] = db.query[User](sql"""
+         SELECT *
+         FROM users
+         WHERE id = $id
+       """).map(_.headOption)
   }
 }
 
