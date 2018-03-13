@@ -27,11 +27,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         
         server = Server.authed(users, tweets, daemon).run
 
-        // Program
-        user = Stream.eval(users.addUser("Tattletales"))
-        // ---
-
-        ec <- Stream(user.map(_ => ()), replicator, server).join(3).drain ++ Stream.emit(ExitCode.Success)
+        ec <- Stream(replicator, server).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 
