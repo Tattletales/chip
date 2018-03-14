@@ -14,11 +14,19 @@ import org.http4s.CacheDirective._
 import org.http4s.MediaType._
 import org.http4s._
 import org.http4s.dsl.Http4sDsl
+import org.http4s.circe._
 import org.http4s.headers.{Cookie => _, _}
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.blaze.BlazeBuilder
 import org.reactormonk.{CryptoBits, PrivateKey}
 import scalatags.Text.all._
+import io.circe._
+import io.circe.generic.auto._
+import io.circe.syntax._
+
+import org.http4s._
+import org.http4s.circe._
+import org.http4s.dsl.io._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -73,7 +81,7 @@ object Server {
               case None       => users.addUser(userName)
             }
             message = crypto.signToken(user.id, clock.millis.toString)
-            response <- Ok("Logged in!").map(_.addCookie(Cookie("authcookie", message)))
+            response <- Ok("Logged in!".asJson).map(_.addCookie(Cookie("authcookie", message, path = Some("/"))))
           } yield response
       }
 
@@ -123,10 +131,13 @@ object Server {
       }
 
       private val write: AuthedService[User, F] = AuthedService {
-        case PUT -> Root / "postTweet" / body as user =>
-          val f = tweets.addTweet(user, body)
+        case authedReq @ POST -> Root / "postTweet" as user =>
+          authedReq.req.as[String].flatMap { body =>
 
-          Ok(f.map(_.asJson))
+            val f = tweets.addTweet(user, body)
+
+            Ok(f.map(_.asJson))
+          }
       }
 
       private val service: HttpService[F] = read <+> login <+> middleware(write)

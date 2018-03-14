@@ -57,8 +57,8 @@ object TweetsActions {
     new Replicable[TweetsAction] {
       def replicate[F[_]: Effect](db: Database[F]): TweetsAction => F[Unit] = {
         case AddTweet(tweet) => db.insert(sql"""
-           INSERT INTO tweets (tweetId, userId, content)
-           VALUES (${tweet.id}}, ${tweet.userId}, ${tweet.content})
+           INSERT INTO tweets (id, user_id, content)
+           VALUES (${tweet.id}, ${tweet.userId}, ${tweet.content})
           """)
       }
     }
