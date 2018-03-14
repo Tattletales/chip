@@ -14,7 +14,8 @@ object Renderer {
     div(
       id := "tweets-main-block",
       div(
-        id := "tweets-container container"
+        id := "tweets-container",
+        `class` := "container"
       ),
       form(
         action := "#",
