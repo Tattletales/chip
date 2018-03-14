@@ -9,9 +9,6 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-case class User(id: String, name: String)
-case class Tweet(id: String, userId: String, content: String)
-
 @JSExportTopLevel("Client")
 object Client {
   private val root = "http://localhost"
