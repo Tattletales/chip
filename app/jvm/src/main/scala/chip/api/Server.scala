@@ -1,3 +1,5 @@
+package chip.api
+
 import java.io.File
 import java.time._
 
@@ -5,28 +7,23 @@ import cats.Applicative
 import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
+import chip.model.{Tweets, User, Users}
 import fs2.Stream
 import fs2.StreamApp.ExitCode
+import gossip.GossipDaemon
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.http4s.CacheDirective._
 import org.http4s.MediaType._
 import org.http4s._
-import org.http4s.dsl.Http4sDsl
 import org.http4s.circe._
+import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{Cookie => _, _}
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.blaze.BlazeBuilder
 import org.reactormonk.{CryptoBits, PrivateKey}
-import scalatags.Text.all._
-import io.circe._
-import io.circe.generic.auto._
-import io.circe.syntax._
-
-import org.http4s._
-import org.http4s.circe._
-import org.http4s.dsl.io._
+import scalatags.Text.all.{body, _}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -78,10 +75,11 @@ object Server {
             id <- daemon.getUniqueId
             user <- users.getUser(id).flatMap {
               case Some(user) => implicitly[Applicative[F]].pure(user)
-              case None       => users.addUser(userName)
+              case None => users.addUser(userName)
             }
             message = crypto.signToken(user.id, clock.millis.toString)
-            response <- Ok("Logged in!".asJson).map(_.addCookie(Cookie("authcookie", message, path = Some("/"))))
+            response <- Ok("Logged in!".asJson)
+              .map(_.addCookie(Cookie("authcookie", message, path = Some("/"))))
           } yield response
       }
 
@@ -133,7 +131,6 @@ object Server {
       private val write: AuthedService[User, F] = AuthedService {
         case authedReq @ POST -> Root / "postTweet" as user =>
           authedReq.req.as[String].flatMap { body =>
-
             val f = tweets.addTweet(user, body)
 
             Ok(f.map(_.asJson))

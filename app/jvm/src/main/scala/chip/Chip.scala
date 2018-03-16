@@ -1,9 +1,16 @@
-import Subscriber.Event
+package chip
+
+import _root_.events.Subscriber.Event
+import org.http4s.circe._
 import cats.effect.{Effect, IO}
+import chip.api.Server
+import chip.events.Replicator
+import chip.model.{Tweets, Users}
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
 import fs2._
-import org.http4s.circe._
+import gossip.GossipDaemon
+import storage.Database
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -24,7 +31,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         tweets = Tweets.replicated[F](db, daemon)
 
         replicator = Replicator[F](db, daemon.subscribe)
-        
+
         server = Server.authed(users, tweets, daemon).run
 
         ec <- Stream(replicator, server).join(2).drain ++ Stream.emit(ExitCode.Success)
@@ -37,8 +44,4 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
     "florian", // user
     "mJ9da5mPHniKrsr8KeYx" // password
   )
-
-  //implicit val fToStream: F ~> Stream[F, ?] = new (F ~> Stream[F, ?]) {
-  //  def apply[A](fa: F[A]): Stream[F, A] = Stream.eval(fa)
-  //}
 }

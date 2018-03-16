@@ -1,3 +1,5 @@
+package network
+
 import cats.MonadError
 import cats.implicits._
 import org.http4s.client.Client

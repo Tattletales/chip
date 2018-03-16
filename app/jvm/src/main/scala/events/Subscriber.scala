@@ -1,4 +1,5 @@
-import Subscriber.Event
+package events
+
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -9,6 +10,7 @@ import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import cats.effect.{Async, Effect}
+import events.Subscriber.Event
 import fs2.Stream
 import fs2.interop.reactivestreams._
 

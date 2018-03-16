@@ -1,6 +1,7 @@
 import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
+import chip.model.Tweet
 import org.scalajs.dom._
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.jquery.{JQueryAjaxSettings, JQueryXHR, jQuery}

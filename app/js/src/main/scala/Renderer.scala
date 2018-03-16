@@ -1,3 +1,4 @@
+import chip.model.Tweet
 import scalatags.Text.all._
 
 object Renderer {

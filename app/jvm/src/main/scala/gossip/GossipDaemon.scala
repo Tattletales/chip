@@ -1,14 +1,18 @@
-import Subscriber.Event
-import Utils.log
+package gossip
+
 import cats.Monad
 import cats.effect.Sync
 import cats.implicits._
+import events.Subscriber.Event
+import events.{EventTypable, Subscriber}
 import fs2.Stream
 import fs2.async.Ref
 import fs2.async.mutable.Queue
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
+import network.HttpClient
 import org.http4s.{EntityDecoder, EntityEncoder}
+import utils.StreamUtils.log
 
 trait GossipDaemon[F[_]] {
   def getUniqueId: F[String]
@@ -44,7 +48,7 @@ sealed abstract class GossipDaemonInstances {
         eventQueue.enqueue1(Event(implicitly[EventTypable[Message]].eventType, m.asJson.spaces2))
 
       def getUniqueId: F[String] = counter.get.map(_.toString)
-        //(counter.modify(_ + 1) >> counter.get).map(_.toString)
+      //(counter.modify(_ + 1) >> counter.get).map(_.toString)
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
     }

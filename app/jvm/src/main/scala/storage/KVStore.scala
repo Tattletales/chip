@@ -1,3 +1,5 @@
+package storage
+
 import cats.data.State
 
 trait KVStore[F[_], K, V] {

@@ -1,3 +1,5 @@
+package storage
+
 import cats._
 import cats.implicits._
 import doobie._

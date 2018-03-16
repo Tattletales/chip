@@ -1,10 +1,15 @@
-import UsersActions._
+package chip.model
+
 import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
+import chip.model.UsersActions._
 import doobie.implicits._
+import events.{EventTypable, Replicable}
+import gossip.GossipDaemon
 import io.circe.generic.auto._
 import org.http4s.EntityDecoder
+import storage.Database
 
 trait Users[F[_]] {
   def addUser(name: String): F[User]
@@ -47,7 +52,7 @@ sealed abstract class UsersInstances {
 object UsersActions {
   sealed trait UsersAction
   case class AddUser(user: User) extends UsersAction
-  //case class RemoveUser(user: User) extends UsersAction
+  //case class RemoveUser(user: chip.model.User) extends UsersAction
 
   implicit val namedUsersAction: EventTypable[UsersAction] = new EventTypable[UsersAction] {
     val eventType: String = "Users"

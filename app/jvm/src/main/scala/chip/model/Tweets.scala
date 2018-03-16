@@ -1,10 +1,15 @@
-import TweetsActions.{AddTweet, TweetsAction}
+package chip.model
+
 import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
+import chip.model.TweetsActions.{AddTweet, TweetsAction}
 import doobie.implicits._
+import events.{EventTypable, Replicable}
+import gossip.GossipDaemon
 import io.circe.generic.auto._
 import org.http4s.EntityDecoder
+import storage.Database
 
 trait Tweets[F[_]] {
   def getTweets(user: User): F[List[Tweet]]
@@ -22,7 +27,7 @@ sealed abstract class TweetsInstances {
       daemon: GossipDaemon[F]
   ): Tweets[F] = new Tweets[F] {
 
-    // Retrieve all tweets posted by the User
+    // Retrieve all tweets posted by the chip.model.User
     def getTweets(user: User): F[List[Tweet]] =
       db.query[Tweet](sql"""
            SELECT *
