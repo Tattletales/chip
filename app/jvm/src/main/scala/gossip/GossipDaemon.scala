@@ -31,7 +31,7 @@ sealed abstract class GossipDaemonInstances {
       httpClient: HttpClient[F],
       subscriber: Subscriber[F]): GossipDaemon[F] =
     new GossipDaemon[F] {
-      private val root = "localhost:2018"
+      private val root = "localhost:59234"
 
       def getUniqueId: F[String] = httpClient.get[String](s"$root/unique")
 
