@@ -36,19 +36,18 @@ The application expects an HTTP server to be running with the following configur
 - `GET /unique`
     - Retrieve a unique ID referencing the current node
 - `POST /gossip/$type` with payload m in JSON format
-    - Send a message `m` to every active node
-    - The `$type` parameter is the value that should be used 
+    - Send a message `m` of type `$type` to every active node
 
 ### Server Sent Events
 
-In order to be notified of new messages, the application interacts with the gossip daemon through Server Sent Events (SSE).
+In order to be notified of new messages, the application interacts with the gossip daemon through [Server Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html) (SSE).
 The channel used by the application is `/events`.
 
 #### SSE Fields
 
 - `id`: the id of the event in the network
-- `event`: the string value of $type parameter given by a gossip
-- `data`: the original payload received through `POST /gossip`
+- `event`: the string value of `$type` parameter received through `POST /gossip/$type`
+- `data`: the original payload received through `POST /gossip/$type`
 
 
 ## Chip
