@@ -1,9 +1,10 @@
 package gossip
 
-import cats.{FlatMap, Functor, Monad}
+import cats.data.EitherT
+import cats.{Applicative, FlatMap, Functor, Monad}
 import cats.effect.Sync
 import cats.implicits._
-import events.Subscriber.Event
+import events.Subscriber.{Event, Lsn}
 import events.{EventTypable, Subscriber}
 import fs2.{Pipe, Pull, Segment, Stream}
 import fs2.async.Ref
@@ -20,6 +21,7 @@ trait GossipDaemon[F[_]] {
   def getUniqueId: F[String]
   def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit]
   def subscribe: Stream[F, Event] // TODO should be val? no need to create new stream for every call
+  def getLog(lsn: Lsn): F[List[Event]]
 }
 
 object GossipDaemon extends GossipDaemonInstances {
@@ -39,6 +41,8 @@ sealed abstract class GossipDaemonInstances {
         httpClient.unsafePostAndIgnore(s"$root/gossip/${M.eventType}", m.asJson)
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
+
+      def getLog(lsn: Lsn): F[List[Event]] = ???
     }
 
   implicit def mock[F[_]: Monad: Sync](eventQueue: Queue[F, Event],
@@ -46,60 +50,69 @@ sealed abstract class GossipDaemonInstances {
     new GossipDaemon[F] {
 
       def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit] =
-        eventQueue.enqueue1(Event("YOLOSWAGDAB", M.eventType, m.asJson.spaces2))
+        eventQueue.enqueue1(Event(Lsn("Foo", 123), M.eventType, m.asJson.spaces2))
 
       def getUniqueId: F[String] = counter.get.map(_.toString)
       //(counter.modify(_ + 1) >> counter.get).map(_.toString)
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
+
+      def getLog(lsn: Lsn): F[List[Event]] = ???
     }
 
-  implicit def causal[F[_]: FlatMap: EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
+  implicit def causal[F[_]: Monad: EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
       httpClient: HttpClient[F],
       subscriber: Subscriber[F],
-      id: Ref[F, String]): GossipDaemon[F] =
+      vClock: Ref[F, Map[String, Int]]): GossipDaemon[F] =
     new GossipDaemon[F] {
-      private case class CausalWrapper(payload: Json, dependsOn: String)
+
+      private case class CausalWrapper(payload: String, dependsOn: Lsn)
 
       private val root = "localhost:2018"
 
-      override def subscribe: Stream[F, Event] =
-        subscriber.subscribe(s"$root/events").through(causalOrder).through(updateId)
+      def subscribe: Stream[F, Event] =
+        subscriber
+          .subscribe(s"$root/events")
+          .through(causalOrder)
 
-      override def getUniqueId: F[String] = httpClient.get[String](s"$root/unique")
+      def getUniqueId: F[String] = httpClient.get[String](s"$root/unique")
 
-      override def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit] =
+      def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit] =
         for {
-          id <- id.get
+          id <- getUniqueId
+          vClock <- vClock.get
           _ <- httpClient.unsafePostAndIgnore(s"$root/gossip/${M.eventType}",
-                                              CausalWrapper(m.asJson, id).asJson)
+                                              CausalWrapper(m.asJson.noSpaces, Lsn(id, vClock(id))).asJson)
         } yield ()
 
-      /**
-        * Updates the last seen id
-        */
-      private val updateId: Pipe[F, Event, Event] = _.evalMap(e => id.setSync(e.id).map(_ => e))
+      def getLog(lsn: Lsn): F[List[Event]] = ???
 
       /**
         * Makes sure that message are sent in the causal order.
         */
       private val causalOrder: Pipe[F, Event, Event] = {
-        def go(s: Stream[F, Event], waiting: Map[String, Vector[Event]]): Pull[F, Event, Unit] =
-          s.pull.uncons1.flatMap { // Option[event :: events]
+        def go(s: Stream[F, Event], waitingFor: Set[Lsn])(
+            implicit F: Applicative[F]): Pull[F, Event, Unit] =
+          s.pull.uncons1.flatMap {
             case Some((e, es)) =>
-              decode[CausalWrapper](e.payload) // Original payload is wrapped
+              decode[CausalWrapper](e.payload)
                 .map { w =>
-                  // Compute new Events that can be released and new waiting list.
-                  val (release0, waiting0) =
-                    release(
-                      e.id,
-                      waiting + (w.dependsOn -> (waiting(e.id) :+ Event(
-                        e.id,
-                        e.eventType,
-                        e.payload)))) // Update waiting list. Append to keep order, maybe not necessary.
-
-                  // Release events and then continue reading stream...
-                  Pull.output(Segment.vector(release0)) >> go(es, waiting0)
+                  for {
+                    vClock <- Pull.eval(vClock.get)
+                    pull <- if (vClock(w.dependsOn.nodeId) >= w.dependsOn.eventId) {
+                      if (waitingFor(e.lsn)) {
+                        release(e.lsn).flatMap { events =>
+                          Pull.output(Segment.seq(Event(e.lsn, e.eventType, w.payload) +: events)) >> go(
+                            es,
+                            waitingFor - e.lsn)
+                        }
+                      } else {
+                        Pull.output1(e.copy(payload = w.payload)) >> go(es, waitingFor)
+                      }
+                    } else {
+                      go(es, waitingFor + w.dependsOn)
+                    }
+                  } yield pull
                 }
                 .getOrElse(Pull.raiseError(
                   new IllegalStateException(s"Could not decode the payload ${e.payload}")))
@@ -107,24 +120,20 @@ sealed abstract class GossipDaemonInstances {
             case None => Pull.done
           }
 
-        go(_, Map.empty.withDefaultValue(Vector.empty)).stream
+        go(_, Set.empty).stream
       }
 
       /**
         * Recursively releases events in waiting given the id.
         */
-      private def release(
-          id: String,
-          waiting: Map[String, Vector[Event]]): (Vector[Event], Map[String, Vector[Event]]) = {
-        val toUnlock = waiting(id) // Events that can be sent
-
-        // Recursively try to unlock events that are now unlocked by the unlocked events
-        // Preprend so they are sent in causal order.
-        toUnlock.map(_.id).foldRight((toUnlock, waiting - id)) {
-          case (id, (events, waiting)) =>
-            val (release0, waiting0) = release(id, waiting)
-            (release0 ++ events, waiting0)
-        }
-      }
+      private def release(lsn: Lsn): Pull[F, Nothing, List[Event]] =
+        Pull.eval(getLog(lsn).map { causalEvents =>
+          for {
+            causalEvent <- causalEvents
+            event <- decode[CausalWrapper](causalEvent.payload)
+              .map(w => Event(causalEvent.lsn, causalEvent.eventType, w.payload))
+              .toList
+          } yield event
+        })
     }
 }

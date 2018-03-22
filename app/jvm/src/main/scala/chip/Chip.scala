@@ -22,6 +22,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
       for {
         eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
         counter <- Stream.eval(async.Ref[F, Int](0))
+        vClock <- Stream.eval(async.Ref[F, Map[String, Int]](Map.empty))
 
         db: Database[F] = Database.doobieDatabase[F](xa)
 
@@ -30,7 +31,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         users = Users.replicated[F](db, daemon)
         tweets = Tweets.replicated[F](db, daemon)
 
-        replicator = Replicator[F](db, daemon.subscribe)
+        replicator = Replicator[F](vClock, db, daemon.subscribe)
 
         server = Server.authed(users, tweets, daemon).run
 

@@ -10,7 +10,7 @@ import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import cats.effect.{Async, Effect}
-import events.Subscriber.Event
+import events.Subscriber.{Event, Lsn}
 import fs2.Stream
 import fs2.interop.reactivestreams._
 
@@ -21,7 +21,8 @@ trait Subscriber[F[_]] {
 }
 
 object Subscriber extends SubscriberInstances {
-  case class Event(id: String, eventType: String, payload: String)
+  case class Lsn(nodeId: String, eventId: Int)
+  case class Event(lsn: Lsn, eventType: String, payload: String)
 
   def apply[F[_]](implicit S: Subscriber[F]): Subscriber[F] = S
 }
@@ -49,7 +50,8 @@ sealed abstract class SubscriberInstances {
                   (for {
                     eventType <- sse.eventType
                     id <- sse.id
-                  } yield Event(id, eventType, sse.data)) match {
+                    Array(nodeId, eventId) = id.split("-")
+                  } yield Event(Lsn(nodeId, eventId.toInt), eventType, sse.data)) match {
                     case Some(event) => Stream.emit(event)
                     case None =>
                       Stream.raiseError[Event](
