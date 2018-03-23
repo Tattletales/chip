@@ -3,12 +3,11 @@ import scalatags.Text.all._
 
 object Renderer {
 
-  def renderTweet(t: Tweet): String = {
+  def renderTweet(t: Tweet): String =
     div(
       `class` := "tweet",
       p(s"${t.userId}: ${t.content}")
     ).render
-  }
 
   def renderTweetingForm: String = {
     val inputFieldId = "tweet-input"

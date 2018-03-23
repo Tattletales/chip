@@ -1,7 +1,6 @@
 package chip
 
-import _root_.events.Subscriber.Event
-import org.http4s.circe._
+import _root_.events.Subscriber.{Event, EventId, NodeId, NodeIdTag}
 import cats.effect.{Effect, IO}
 import chip.api.Server
 import chip.events.Replicator
@@ -11,6 +10,8 @@ import fs2.StreamApp.ExitCode
 import fs2._
 import gossip.GossipDaemon
 import storage.Database
+import shapeless.tag
+import org.http4s.circe._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -21,8 +22,8 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       for {
         eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
-        counter <- Stream.eval(async.Ref[F, Int](0))
-        vClock <- Stream.eval(async.Ref[F, Map[String, Int]](Map.empty))
+        counter <- Stream.eval(async.Ref[F, NodeId](tag[NodeIdTag][String]("aaa")))
+        vClock <- Stream.eval(async.Ref[F, Map[NodeId, EventId]](Map.empty))
 
         db: Database[F] = Database.doobieDatabase[F](xa)
 

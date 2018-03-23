@@ -10,9 +10,14 @@ import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import cats.effect.{Async, Effect}
-import events.Subscriber.{Event, Lsn}
+import events.Subscriber.{Event, EventIdTag, EventTypeTag, Lsn, NodeIdTag, PayloadTag}
 import fs2.Stream
 import fs2.interop.reactivestreams._
+import io.circe.{Decoder, Encoder}
+import org.http4s
+import org.http4s.{DecodeResult, EntityDecoder, Message}
+import shapeless.tag.@@
+import shapeless.tag
 
 import scala.concurrent.ExecutionContext
 
@@ -21,8 +26,52 @@ trait Subscriber[F[_]] {
 }
 
 object Subscriber extends SubscriberInstances {
-  case class Lsn(nodeId: String, eventId: Int)
-  case class Event(lsn: Lsn, eventType: String, payload: String)
+  sealed trait NodeIdTag
+  type NodeId = String @@ NodeIdTag
+
+  sealed trait EventIdTag
+  type EventId = Int @@ EventIdTag
+
+  sealed trait EventTypeTag
+  type EventType = String @@ EventTypeTag
+
+  sealed trait PayloadTag
+  type Payload = String @@ PayloadTag
+
+  object implicits {
+    /* --- NodeId --- */
+    implicit def nodeIdEntityDecoder[F[_]](
+        implicit D: EntityDecoder[F, String]): EntityDecoder[F, NodeId] =
+      new EntityDecoder[F, NodeId] {
+        def decode(msg: Message[F], strict: Boolean): DecodeResult[F, NodeId] =
+          D.decode(msg, strict).asInstanceOf[DecodeResult[F, NodeId]]
+        def consumes: Set[http4s.MediaRange] = D.consumes
+      }
+
+    implicit def nodeIdEncoder(implicit E: Encoder[String]): Encoder[NodeId] =
+      E.asInstanceOf[Encoder[NodeId]]
+
+    implicit def nodeIdDecoder(implicit E: Decoder[String]): Decoder[NodeId] =
+      E.asInstanceOf[Decoder[NodeId]]
+
+    /* --- EventId --- */
+    implicit def eventIdEncoder(implicit E: Encoder[Int]): Encoder[EventId] =
+      E.asInstanceOf[Encoder[EventId]]
+
+    implicit def eventIdDecoder(implicit E: Decoder[Int]): Decoder[EventId] =
+      E.asInstanceOf[Decoder[EventId]]
+
+    /* --- Payload --- */
+    implicit def payloadEncoder(implicit E: Encoder[String]): Encoder[Payload] =
+      E.asInstanceOf[Encoder[Payload]]
+
+    implicit def payloadDecoder(implicit E: Decoder[String]): Decoder[Payload] =
+      E.asInstanceOf[Decoder[Payload]]
+  }
+
+  case class Lsn(nodeId: NodeId, eventId: EventId)
+
+  case class Event(lsn: Lsn, eventType: EventType, payload: Payload)
 
   def apply[F[_]](implicit S: Subscriber[F]): Subscriber[F] = S
 }
@@ -51,7 +100,10 @@ sealed abstract class SubscriberInstances {
                     eventType <- sse.eventType
                     id <- sse.id
                     Array(nodeId, eventId) = id.split("-")
-                  } yield Event(Lsn(nodeId, eventId.toInt), eventType, sse.data)) match {
+                  } yield
+                    Event(Lsn(tag[NodeIdTag][String](nodeId), tag[EventIdTag][Int](eventId.toInt)),
+                          tag[EventTypeTag][String](eventType),
+                          tag[PayloadTag][String](sse.data))) match {
                     case Some(event) => Stream.emit(event)
                     case None =>
                       Stream.raiseError[Event](

@@ -2,6 +2,7 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
 import chip.model.Tweet
+import chip.model.decoderImplicits._
 import org.scalajs.dom._
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.jquery.{JQueryAjaxSettings, JQueryXHR, jQuery}
@@ -60,24 +61,26 @@ object Client {
 
     val tweetingForm = jQuery("#tweeting-form")
 
-    tweetingForm.submit(() => {
-      val tweet = jQuery("#tweet-input").value().toString
+    tweetingForm.submit(
+      () => {
+        val tweet = jQuery("#tweet-input").value().toString
 
-      jQuery.ajax(
-        js.Dynamic
-          .literal(
-            `type` = "POST",
-            url = s"$root:$port/postTweet",
-            data = tweet.asJson.toString(),
-            xhrFields = js.Dynamic.literal(withCredentials = true).asInstanceOf[JQueryAjaxSettings],
-            success = successTweetPostCallback,
-            error = failedTweetPostCallback
-          )
-          .asInstanceOf[JQueryAjaxSettings]
-      )
+        jQuery.ajax(
+          js.Dynamic
+            .literal(
+              `type` = "POST",
+              url = s"$root:$port/postTweet",
+              data = tweet.asJson.toString(),
+              xhrFields =
+                js.Dynamic.literal(withCredentials = true).asInstanceOf[JQueryAjaxSettings],
+              success = successTweetPostCallback,
+              error = failedTweetPostCallback
+            )
+            .asInstanceOf[JQueryAjaxSettings]
+        )
 
-      false
-    })
+        false
+      })
   }
 
   private def successTweetPostCallback = (data: js.Any, textStatus: String, xhr: JQueryXHR) => {

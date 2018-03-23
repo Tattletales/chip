@@ -4,16 +4,21 @@ import cats._
 import cats.implicits._
 import doobie._
 import doobie.implicits._
+import shapeless.tag.@@
+import storage.Database.Column
 
 trait Database[F[_]] {
   def query[R: Composite](q: Fragment): F[List[R]] // TODO remove Composite http://tpolecat.github.io/doobie/docs/12-Custom-Mappings.html
   def insert(q: Fragment): F[Unit]
-  def insertAndGet[R: Composite](q: Fragment, cols: String*): F[Option[R]]
+  def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[Option[R]]
   def remove(q: Fragment): F[Unit]
   def exists(q: Fragment): F[Boolean]
 }
 
 object Database extends DatabaseInstances {
+  sealed trait ColumnTag
+  type Column = String @@ ColumnTag
+
   def apply[F[_]](implicit D: Database[F]): Database[F] = D
 }
 
@@ -30,7 +35,7 @@ sealed abstract class DatabaseInstances {
         q.update.run.transact(xa).map(_ => ())
       }
 
-      def insertAndGet[R: Composite](q: Fragment, cols: String*): F[Option[R]] =
+      def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[Option[R]] =
         q.update
           .withUniqueGeneratedKeys[R](cols: _*)
           .attemptSomeSqlState {

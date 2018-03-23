@@ -7,6 +7,8 @@ import cats.Applicative
 import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
+import chip.model.Tweet.Content
+import chip.model.implicits._
 import chip.model.{Tweets, User, Users}
 import fs2.Stream
 import fs2.StreamApp.ExitCode
@@ -130,7 +132,7 @@ object Server {
 
       private val write: AuthedService[User, F] = AuthedService {
         case authedReq @ POST -> Root / "postTweet" as user =>
-          authedReq.req.as[String].flatMap { body =>
+          authedReq.req.as[Content].flatMap { body =>
             val f = tweets.addTweet(user, body)
 
             Ok(f.map(_.asJson))

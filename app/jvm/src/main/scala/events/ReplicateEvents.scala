@@ -2,7 +2,7 @@ package events
 
 import cats.effect.Effect
 import cats.implicits._
-import events.Subscriber.Event
+import events.Subscriber.{Event, EventId, EventType, NodeId}
 import fs2.async.Ref
 import io.circe.Decoder
 import io.circe.parser.decode
@@ -12,13 +12,13 @@ import storage.Database
 
 // https://youtu.be/Nm4OIhjjA2o
 trait ReplicateEvents[E] {
-  def replicate[F[_]](vClock: Ref[F, Map[String, Int]], db: Database[F])(event: Event)(
+  def replicate[F[_]](vClock: Ref[F, Map[NodeId, EventId]], db: Database[F])(event: Event)(
       implicit F: Effect[F]): F[Unit]
 }
 
 object ReplicateEvents {
   implicit val baseCase: ReplicateEvents[HNil] = new ReplicateEvents[HNil] {
-    def replicate[F[_]](vClock: Ref[F, Map[String, Int]], db: Database[F])(event: Event)(
+    def replicate[F[_]](vClock: Ref[F, Map[NodeId, EventId]], db: Database[F])(event: Event)(
         implicit F: Effect[F]): F[Unit] = F.pure(())
   }
 
@@ -27,11 +27,12 @@ object ReplicateEvents {
                                              replicable: Replicable[E],
                                              tail: ReplicateEvents[Es]): ReplicateEvents[E :: Es] =
     new ReplicateEvents[E :: Es] {
-      def replicate[F[_]](vClock: Ref[F, Map[String, Int]], db: Database[F])(event: Event)(
+      def replicate[F[_]](vClock: Ref[F, Map[NodeId, EventId]], db: Database[F])(event: Event)(
           implicit F: Effect[F]): F[Unit] =
         for {
           _ <- if (event.eventType == head.eventType) {
-            F.fromEither(decode[E](event.payload)).flatMap(replicable.replicate(db))
+            F.fromEither(decode[E](event.payload))
+              .flatMap(replicable.replicate(db))
           } else tail.replicate(vClock, db)(event)
           v <- vClock.get
           _ <- vClock.setSync(v + (event.lsn.nodeId -> event.lsn.eventId))
@@ -41,7 +42,7 @@ object ReplicateEvents {
 
 @typeclass
 trait EventTypable[T] {
-  def eventType: String
+  def eventType: EventType
 }
 
 @typeclass
