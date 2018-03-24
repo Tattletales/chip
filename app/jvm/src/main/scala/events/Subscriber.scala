@@ -10,9 +10,10 @@ import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import cats.effect.{Async, Effect}
-import events.Subscriber.{Event, EventIdTag, EventTypeTag, Lsn, NodeIdTag, PayloadTag}
+import events.Subscriber.{Event, EventIdTag, EventTypeTag, Lsn, PayloadTag}
 import fs2.Stream
 import fs2.interop.reactivestreams._
+import gossip.model.Node.{NodeId, NodeIdTag}
 import io.circe.{Decoder, Encoder}
 import org.http4s
 import org.http4s.{DecodeResult, EntityDecoder, Message}
@@ -26,9 +27,6 @@ trait Subscriber[F[_]] {
 }
 
 object Subscriber extends SubscriberInstances {
-  sealed trait NodeIdTag
-  type NodeId = String @@ NodeIdTag
-
   sealed trait EventIdTag
   type EventId = Int @@ EventIdTag
 

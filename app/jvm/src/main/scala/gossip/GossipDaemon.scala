@@ -5,10 +5,11 @@ import cats.implicits._
 import cats.{Applicative, Monad}
 import events.Subscriber._
 import events.Subscriber.implicits._
-import events.{EventTypable, Subscriber}
+import events.{EventTyper, Subscriber}
 import fs2.async.Ref
 import fs2.async.mutable.Queue
 import fs2.{Pipe, Pull, Segment, Stream}
+import gossip.model.Node.{NodeId, NodeIdTag}
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -20,8 +21,8 @@ import utils.StreamUtils.log
 import shapeless.tag
 
 trait GossipDaemon[F[_]] {
-  def getUniqueId: F[NodeId]
-  def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit]
+  def getNodeId: F[NodeId]
+  def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit]
   def subscribe
     : Stream[F, Event] // TODO should be val? no need to create new stream for every call
   def getLog(lsn: Lsn): F[List[Event]]
@@ -38,9 +39,9 @@ sealed abstract class GossipDaemonInstances {
     new GossipDaemon[F] {
       private val root = "localhost:59234"
 
-      def getUniqueId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
+      def getNodeId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
 
-      def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit] =
+      def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit] =
         httpClient.unsafePostAndIgnore(tag[UriTag][String](s"$root/gossip/${M.eventType}"),
                                        m.asJson)
 
@@ -53,13 +54,13 @@ sealed abstract class GossipDaemonInstances {
                                        counter: Ref[F, NodeId]): GossipDaemon[F] =
     new GossipDaemon[F] {
 
-      def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit] =
+      def send[Message: Encoder](m: Message)(implicit M: EventTyper[Message]): F[Unit] =
         eventQueue.enqueue1(
           Event(Lsn(tag[NodeIdTag][String]("Foo"), tag[EventIdTag][Int](123)),
                 M.eventType,
                 tag[PayloadTag][String](m.asJson.noSpaces)))
 
-      def getUniqueId: F[NodeId] = counter.get
+      def getNodeId: F[NodeId] = counter.get
       //(counter.modify(_ + 1) >> counter.get).map(_.toString)
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
@@ -81,11 +82,11 @@ sealed abstract class GossipDaemonInstances {
           .subscribe(s"$root/events")
           .through(causalOrder)
 
-      def getUniqueId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
+      def getNodeId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
 
-      def send[Message: Encoder](m: Message)(implicit M: EventTypable[Message]): F[Unit] =
+      def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit] =
         for {
-          id <- getUniqueId
+          id <- getNodeId
           vClock <- vClock.get
           _ <- httpClient.unsafePostAndIgnore(
             tag[UriTag][String](s"$root/gossip/${M.eventType}"),

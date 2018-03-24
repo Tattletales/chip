@@ -5,12 +5,13 @@ import cats.effect.Effect
 import chip.model.Tweet.Content
 import doobie.implicits._
 import events.Subscriber.{EventType, EventTypeTag}
-import events.{EventTypable, Replicable}
+import chip.events.Replicable
 import gossip.GossipDaemon
 import org.http4s.EntityDecoder
 import storage.Database
 import shapeless.tag
 import chip.model.implicits._
+import events.EventTyper
 
 trait Tweets[F[_]] {
   def getTweets(user: User): F[List[Tweet]]
@@ -55,8 +56,8 @@ object TweetsActions {
   case class AddTweet(tweet: Tweet) extends TweetsAction
 
   object TweetsAction {
-    implicit val namedTweetsAction: EventTypable[TweetsAction] =
-      new EventTypable[TweetsAction] {
+    implicit val namedTweetsAction: EventTyper[TweetsAction] =
+      new EventTyper[TweetsAction] {
         val eventType: EventType = tag[EventTypeTag][String]("Tweets")
       }
 

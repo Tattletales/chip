@@ -5,12 +5,13 @@ import cats.effect.Effect
 import cats.implicits._
 import doobie.implicits._
 import events.Subscriber.{EventType, EventTypeTag}
-import events.{EventTypable, Replicable}
+import chip.events.Replicable
 import gossip.GossipDaemon
 import org.http4s.EntityDecoder
 import storage.Database
 import shapeless.tag
 import chip.model.implicits._
+import events.EventTyper
 
 trait Users[F[_]] {
   def addUser(name: String): F[User]
@@ -56,7 +57,7 @@ object UsersActions {
   //case class RemoveUser(user: chip.model.User) extends UsersAction
 
   object UsersAction {
-    implicit val namedUsersAction: EventTypable[UsersAction] = new EventTypable[UsersAction] {
+    implicit val namedUsersAction: EventTyper[UsersAction] = new EventTyper[UsersAction] {
       val eventType: EventType = tag[EventTypeTag][String]("Users")
     }
 

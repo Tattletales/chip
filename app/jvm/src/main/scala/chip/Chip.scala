@@ -1,6 +1,6 @@
 package chip
 
-import _root_.events.Subscriber.{Event, EventId, NodeId, NodeIdTag}
+import _root_.events.Subscriber.{Event, EventId}
 import cats.effect.{Effect, IO}
 import chip.api.Server
 import chip.events.Replicator
@@ -9,6 +9,7 @@ import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
 import fs2._
 import gossip.GossipDaemon
+import gossip.model.Node._
 import storage.Database
 import shapeless.tag
 import org.http4s.circe._
@@ -23,7 +24,6 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
       for {
         eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
         counter <- Stream.eval(async.Ref[F, NodeId](tag[NodeIdTag][String]("aaa")))
-        vClock <- Stream.eval(async.Ref[F, Map[NodeId, EventId]](Map.empty))
 
         db: Database[F] = Database.doobieDatabase[F](xa)
 
@@ -32,7 +32,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         users = Users.replicated[F](db, daemon)
         tweets = Tweets.replicated[F](db, daemon)
 
-        replicator = Replicator[F](vClock, db, daemon.subscribe)
+        replicator = Replicator[F](db, daemon.subscribe)
 
         server = Server.authed(users, tweets, daemon).run
 

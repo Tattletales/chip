@@ -74,7 +74,7 @@ object Server {
       private val login: HttpService[F] = HttpService {
         case GET -> Root / "login" / userName =>
           for {
-            id <- daemon.getUniqueId
+            id <- daemon.getNodeId
             user <- users.getUser(id).flatMap {
               case Some(user) => implicitly[Applicative[F]].pure(user)
               case None => users.addUser(userName)
