@@ -2,10 +2,11 @@ package vault.model
 
 import cats.Monad
 import cats.implicits._
-import gossip.GossipDaemon
+import backend.gossip.GossipDaemon
 import io.circe.generic.auto._
-import storage.Database
-import vault.model.implicits._
+import backend.storage.Database
+import vault.implicits._
+import backend.implicits._
 import vault.events._
 import vault.model.Account._
 

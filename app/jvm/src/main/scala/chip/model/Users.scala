@@ -4,20 +4,23 @@ import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
 import doobie.implicits._
-import events.Subscriber.{EventType, EventTypeTag}
+import backend.events.Subscriber.{EventType, EventTypeTag}
 import chip.events.Replicable
-import gossip.GossipDaemon
+import chip.model.User.{UserId, Username}
+import chip.model.UsersActions.{AddUser, UsersAction}
+import backend.gossip.GossipDaemon
 import org.http4s.EntityDecoder
-import storage.Database
+import backend.storage.Database
 import shapeless.tag
-import chip.model.implicits._
-import events.EventTyper
+import chip.implicits._
+import backend.events.EventTyper
+import io.circe.generic.auto._
+import backend.implicits._
 
 trait Users[F[_]] {
-  def addUser(name: String): F[User]
-  //def removeUser(user: String): F[Unit]
-  def searchUser(name: String): F[List[User]]
-  def getUser(id: String): F[Option[User]]
+  def addUser(name: Username): F[User]
+  def searchUser(name: Username): F[List[User]]
+  def getUser(id: UserId): F[Option[User]]
 }
 
 object Users extends UsersInstances {
@@ -29,21 +32,21 @@ sealed abstract class UsersInstances {
       db: Database[F],
       daemon: GossipDaemon[F]
   ): Users[F] = new Users[F] {
-    def addUser(name: String): F[User] = ???
-    //for {
-    //  id <- daemon.getUniqueId
-    //  user = User(id, name)
-    //  _ <- daemon.send[UsersAction](AddUser(user))
-    //} yield user
+    def addUser(name: Username): F[User] =
+      for {
+        id <- daemon.getNodeId
+        user = User(id, name)
+        _ <- daemon.send[UsersAction](AddUser(user))
+      } yield user
 
-    def searchUser(name: String): F[List[User]] =
+    def searchUser(name: Username): F[List[User]] =
       db.query[User](sql"""
          SELECT *
          FROM users
          WHERE name = $name
        """)
 
-    def getUser(id: String): F[Option[User]] = db.query[User](sql"""
+    def getUser(id: UserId): F[Option[User]] = db.query[User](sql"""
          SELECT *
          FROM users
          WHERE id = $id
@@ -54,7 +57,6 @@ sealed abstract class UsersInstances {
 object UsersActions {
   sealed trait UsersAction
   case class AddUser(user: User) extends UsersAction
-  //case class RemoveUser(user: chip.model.User) extends UsersAction
 
   object UsersAction {
     implicit val namedUsersAction: EventTyper[UsersAction] = new EventTyper[UsersAction] {
@@ -71,9 +73,5 @@ object UsersActions {
        """)
         }
       }
-
-    //implicit val decoder: Decoder[UsersAction] = new Decoder[UsersAction] {
-    //  override def apply(c: HCursor): Result[UsersAction] = ???
-    //}
   }
 }

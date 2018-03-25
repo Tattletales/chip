@@ -1,8 +1,8 @@
-package network
+package backend.network
 
 import cats.MonadError
 import cats.implicits._
-import network.HttpClient.Uri
+import backend.network.HttpClient.Uri
 import org.http4s.client.Client
 import org.http4s.{Uri => Http4sUri, _}
 import shapeless.tag.@@

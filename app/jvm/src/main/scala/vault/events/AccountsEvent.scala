@@ -2,14 +2,15 @@ package vault.events
 
 import cats.{Applicative, Parallel}
 import cats.effect.Effect
-import events.EventTyper
-import events.Subscriber.{EventType, EventTypeTag}
-import gossip.GossipDaemon
-import gossip.model.Node.NodeId
+import backend.events.EventTyper
+import backend.events.Subscriber.{EventType, EventTypeTag}
+import backend.gossip.GossipDaemon
+import backend.gossip.model.Node.NodeId
 import shapeless.tag
 import io.circe.generic.auto._
-import vault.model.implicits._
-import storage.Database
+import vault.implicits._
+import backend.implicits._
+import backend.storage.Database
 import vault.model.Account.{Money, User}
 import cats.implicits._
 import vault.model.Accounts

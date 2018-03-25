@@ -1,20 +1,20 @@
 package chip.model
 
-import chip.model.Tweet.{Content, ContentTag, TweetId, TweetIdTag}
-import chip.model.User.{UserId, UserIdTag, Username, UsernameTag}
+import chip.model.Tweet.{Content, ContentTag}
+import chip.model.User.{Username, UsernameTag}
+import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import io.circe.Decoder
 import shapeless.tag
 
-object decoderImplicits {
+trait decoderImplicits {
   implicit def contentDecoder(implicit D: Decoder[String]): Decoder[Content] =
     D.map(tag[ContentTag][String](_))
 
-  implicit def tweetIdDecoder(implicit D: Decoder[String]): Decoder[TweetId] =
-    D.map(tag[TweetIdTag][String](_))
-
-  implicit def userIdDecoder(implicit D: Decoder[String]): Decoder[UserId] =
-    D.map(tag[UserIdTag][String](_))
+  implicit def nodeIdDecoder(implicit D: Decoder[String]): Decoder[NodeId] =
+    D.map(tag[NodeIdTag][String](_))
 
   implicit def usernameDecoder(implicit D: Decoder[String]): Decoder[Username] =
     D.map(tag[UsernameTag][String](_))
 }
+
+object decoderImplicits extends decoderImplicits

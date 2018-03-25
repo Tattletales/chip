@@ -1,21 +1,21 @@
-package gossip
+package backend.gossip
 
 import cats.effect.Sync
 import cats.implicits._
 import cats.{Applicative, Monad}
-import events.Subscriber._
-import events.Subscriber.implicits._
-import events.{EventTyper, Subscriber}
+import backend.events.Subscriber._
+import backend.events.Subscriber.implicits._
+import backend.events.{EventTyper, Subscriber}
 import fs2.async.Ref
 import fs2.async.mutable.Queue
 import fs2.{Pipe, Pull, Segment, Stream}
-import gossip.model.Node.{NodeId, NodeIdTag}
+import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
-import network.HttpClient
-import network.HttpClient.UriTag
+import backend.network.HttpClient
+import backend.network.HttpClient.UriTag
 import org.http4s.{EntityDecoder, EntityEncoder}
 import utils.StreamUtils.log
 import shapeless.tag
@@ -42,30 +42,28 @@ sealed abstract class GossipDaemonInstances {
       def getNodeId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
 
       def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit] =
-        httpClient.unsafePostAndIgnore(tag[UriTag][String](s"$root/gossip/${M.eventType}"),
+        httpClient.unsafePostAndIgnore(tag[UriTag][String](s"$root/backend.gossip/${M.eventType}"),
                                        m.asJson)
 
-      def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
+      def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/backend.events")
 
       def getLog(lsn: Lsn): F[List[Event]] = ???
     }
 
-  implicit def mock[F[_]: Monad: Sync](eventQueue: Queue[F, Event],
-                                       counter: Ref[F, NodeId]): GossipDaemon[F] =
+  implicit def mock[F[_]: Monad: Sync](eventQueue: Queue[F, Event]): GossipDaemon[F] =
     new GossipDaemon[F] {
 
       def send[Message: Encoder](m: Message)(implicit M: EventTyper[Message]): F[Unit] =
         eventQueue.enqueue1(
-          Event(Lsn(tag[NodeIdTag][String]("Foo"), tag[EventIdTag][Int](123)),
+          Event(Lsn(tag[NodeIdTag][String]("FFFF"), tag[EventIdTag][Int](123)),
                 M.eventType,
                 tag[PayloadTag][String](m.asJson.noSpaces)))
 
-      def getNodeId: F[NodeId] = counter.get
-      //(counter.modify(_ + 1) >> counter.get).map(_.toString)
+      def getNodeId: F[NodeId] = implicitly[Applicative[F]].pure(tag[NodeIdTag][String]("FFFF"))
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
 
-      def getLog(lsn: Lsn): F[List[Event]] = ???
+      def getLog(lsn: Lsn): F[List[Event]] = implicitly[Applicative[F]].pure(List.empty)
     }
 
   implicit def causal[F[_]: Monad: EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
@@ -79,7 +77,7 @@ sealed abstract class GossipDaemonInstances {
 
       def subscribe: Stream[F, Event] =
         subscriber
-          .subscribe(s"$root/events")
+          .subscribe(s"$root/backend.events")
           .through(causalOrder)
 
       def getNodeId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
@@ -89,7 +87,7 @@ sealed abstract class GossipDaemonInstances {
           id <- getNodeId
           vClock <- vClock.get
           _ <- httpClient.unsafePostAndIgnore(
-            tag[UriTag][String](s"$root/gossip/${M.eventType}"),
+            tag[UriTag][String](s"$root/backend.gossip/${M.eventType}"),
             CausalWrapper(tag[PayloadTag][String](m.asJson.noSpaces), Lsn(id, vClock(id))).asJson)
         } yield ()
 
@@ -132,7 +130,7 @@ sealed abstract class GossipDaemonInstances {
       }
 
       /**
-        * Recursively releases events in waiting given the id.
+        * Recursively releases backend.events in waiting given the id.
         */
       private def release(lsn: Lsn): Pull[F, Nothing, List[Event]] =
         Pull.eval(getLog(lsn).map { causalEvents =>

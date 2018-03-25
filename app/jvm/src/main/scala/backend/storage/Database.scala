@@ -1,11 +1,11 @@
-package storage
+package backend.storage
 
 import cats._
 import cats.implicits._
 import doobie._
 import doobie.implicits._
 import shapeless.tag.@@
-import storage.Database.Column
+import backend.storage.Database.Column
 
 trait Database[F[_]] {
   def query[R: Composite](q: Fragment): F[List[R]] // TODO remove Composite http://tpolecat.github.io/doobie/docs/12-Custom-Mappings.html

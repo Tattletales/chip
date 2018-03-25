@@ -8,11 +8,14 @@ import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
 import chip.model.Tweet.Content
-import chip.model.implicits._
+import chip.model.User.UsernameTag
+import chip.implicits._
 import chip.model.{Tweets, User, Users}
 import fs2.Stream
 import fs2.StreamApp.ExitCode
-import gossip.GossipDaemon
+import backend.implicits._
+import backend.gossip.GossipDaemon
+import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -25,6 +28,7 @@ import org.http4s.headers.{Cookie => _, _}
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.blaze.BlazeBuilder
 import org.reactormonk.{CryptoBits, PrivateKey}
+import shapeless.tag
 import scalatags.Text.all.{body, _}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -77,7 +81,7 @@ object Server {
             id <- daemon.getNodeId
             user <- users.getUser(id).flatMap {
               case Some(user) => implicitly[Applicative[F]].pure(user)
-              case None => users.addUser(userName)
+              case None => users.addUser(tag[UsernameTag][String](userName))
             }
             message = crypto.signToken(user.id, clock.millis.toString)
             response <- Ok("Logged in!".asJson)
@@ -85,7 +89,7 @@ object Server {
           } yield response
       }
 
-      private def retrieveUser: Kleisli[F, String, Either[String, User]] =
+      private def retrieveUser: Kleisli[F, NodeId, Either[String, User]] =
         Kleisli { id =>
           users.getUser(id).map(_.toRight(s"Could not retrieve user with id $id"))
         }
@@ -97,8 +101,12 @@ object Server {
             .find(_.name == "authcookie")
             .toRight("Couldn't find the authcookie")
           token <- crypto.validateSignedToken(cookie.content).toRight("Cookie invalid")
-          message <- Either.catchOnly[NumberFormatException](token).leftMap(_.toString)
+          message <- Either
+            .catchOnly[NumberFormatException](token)
+            .leftMap(_.toString)
+            .map(tag[NodeIdTag][String])
         } yield message
+
         message.traverse(retrieveUser.run).map(_.fold(Left(_), e => e))
       }
 
@@ -116,7 +124,7 @@ object Server {
           )
         case GET -> Root / "getTweets" / userName =>
           val response = for {
-            user <- users.searchUser(userName).map(_.head)
+            user <- users.searchUser(tag[UsernameTag][String](userName)).map(_.head)
             postedTweets <- tweets.getTweets(user)
           } yield postedTweets
 

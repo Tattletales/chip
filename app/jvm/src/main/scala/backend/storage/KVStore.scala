@@ -1,4 +1,4 @@
-package storage
+package backend.storage
 
 import cats.data.State
 

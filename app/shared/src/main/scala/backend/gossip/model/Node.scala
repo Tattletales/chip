@@ -1,4 +1,4 @@
-package gossip.model
+package backend.gossip.model
 
 import shapeless.tag.@@
 

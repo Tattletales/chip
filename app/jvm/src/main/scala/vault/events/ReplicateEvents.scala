@@ -3,15 +3,15 @@ package vault.events
 import cats.Parallel
 import cats.effect.Effect
 import cats.implicits._
-import events.EventTyper
-import events.Subscriber.Event
-import gossip.GossipDaemon
-import gossip.model.Node.NodeId
+import backend.events.EventTyper
+import backend.events.Subscriber.Event
+import backend.gossip.GossipDaemon
+import backend.gossip.model.Node.NodeId
 import io.circe.Decoder
 import io.circe.parser.decode
 import shapeless.{::, HList, HNil}
 import simulacrum._
-import storage.Database
+import backend.storage.Database
 import vault.model.Accounts
 
 // https://youtu.be/Nm4OIhjjA2o

@@ -1,6 +1,6 @@
 package vault.model
 
-import gossip.model.Node.NodeId
+import backend.gossip.model.Node.NodeId
 import shapeless.tag.@@
 import vault.model.Account.{Money, User}
 

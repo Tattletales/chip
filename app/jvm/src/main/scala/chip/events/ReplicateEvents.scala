@@ -2,13 +2,13 @@ package chip.events
 
 import cats.effect.Effect
 import cats.implicits._
-import events.EventTyper
-import events.Subscriber.{Event, EventType}
+import backend.events.EventTyper
+import backend.events.Subscriber.{Event, EventType}
 import io.circe.Decoder
 import io.circe.parser.decode
 import shapeless.{::, HList, HNil}
 import simulacrum._
-import storage.Database
+import backend.storage.Database
 
 // https://youtu.be/Nm4OIhjjA2o
 trait ReplicateEvents[E] {
