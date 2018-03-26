@@ -10,9 +10,6 @@ trait decoderImplicits {
   implicit def contentDecoder(implicit D: Decoder[String]): Decoder[Content] =
     D.map(tag[ContentTag][String](_))
 
-  implicit def nodeIdDecoder(implicit D: Decoder[String]): Decoder[NodeId] =
-    D.map(tag[NodeIdTag][String](_))
-
   implicit def usernameDecoder(implicit D: Decoder[String]): Decoder[Username] =
     D.map(tag[UsernameTag][String](_))
 }

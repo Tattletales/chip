@@ -2,6 +2,7 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
 import chip.model.Tweet
+import backend.gossip.model.decoderImplicits._
 import chip.model.decoderImplicits._
 import org.scalajs.dom._
 import org.scalajs.dom.ext.Ajax
