@@ -1,13 +1,12 @@
 package backend.utils
 
 import io.circe.{Decoder, Encoder}
-import io.circe.Decoder.decodeEither
-import io.circe.Encoder.encodeEither
 
 trait EitherParsing {
-  implicit def eitherDecoder[A: Decoder, B: Decoder]: Decoder[Either[A, B]] =
-    decodeEither("l", "r")
+  implicit def eitherDecoder[A, B](implicit A: Decoder[A], B: Decoder[B]): Decoder[Either[A, B]] = {
+    val a: Decoder[Either[A, B]] = A.map(Left.apply)
+    val b: Decoder[Either[A, B]] = B.map(Right.apply)
 
-  implicit def eitherEncoder[A: Encoder, B: Encoder]: Encoder[Either[A, B]] =
-    encodeEither("l", "r")
+    a.or(b)
+  }
 }

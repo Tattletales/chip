@@ -22,16 +22,13 @@ sealed trait AccountsEvent
 case class Withdraw(from: User, to: User, amount: Money, lsn: Lsn) extends AccountsEvent
 case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends AccountsEvent
 
-case class Withdraw0(from: User, to: User, amount: Money)
-
 object AccountsEvent {
+  // Both Events can be received.
   type AccountsEvent0 = Either[Withdraw0, AccountsEvent]
 
-  def run[F[_]: Effect](sender: NodeId,
-                        db: Database[F],
-                        daemon: GossipDaemon[F],
-                        accounts: Accounts[F]): Sink[F, Event] =
-    _.through(decode).through(causal(accounts)).evalMap(replicate(db, daemon, accounts)(_))
+  def handler[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
+      s: Stream[F, Event]): Stream[F, Unit] =
+    s.through(decode).through(causal(accounts)).evalMap(handleEvent(daemon, db, accounts)(_))
 
   /**
     * Converts Events in AccountsEvents.
@@ -45,10 +42,9 @@ object AccountsEvent {
           case Left(Withdraw0(from, to, amount)) => Withdraw(from, to, amount, e.lsn)
         }
         .toOption
-        .flatMap {
-          case w @ Withdraw(from, _, _, _) if e.lsn.nodeId == from => Some(w)
-          case d @ Deposit(from, _, _, _) if e.lsn.nodeId == from => Some(d)
-          case _ => None
+        .filter {
+          case Withdraw(from, _, _, _) => e.lsn.nodeId == from
+          case Deposit(from, _, _, _) => e.lsn.nodeId == from
         }
 
     _.map(convert).unNone
@@ -120,11 +116,11 @@ object AccountsEvent {
   /**
     * Handles AccountsEvents.
     */
-  private def replicate[F[_]](db: Database[F], daemon: GossipDaemon[F], accounts: Accounts[F])(
+  private def handleEvent[F[_]](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
       event: AccountsEvent)(implicit F: Effect[F]): F[Unit] =
     event match {
       case Withdraw(from, to, amount, lsn) =>
-        val deposit = daemon.send[AccountsEvent0](Right(Deposit(from, to, amount, lsn)))
+        val deposit = daemon.send[AccountsEvent](Deposit(from, to, amount, lsn))
 
         daemon.getNodeId.map(_ == to).ifM(deposit, F.unit)
 
@@ -136,7 +132,22 @@ object AccountsEvent {
   /**
     * Not used in Vault.
     */
-  implicit val eventTyper: EventTyper[AccountsEvent0] = new EventTyper[AccountsEvent0] {
+  implicit val eventTyper: EventTyper[AccountsEvent] = new EventTyper[AccountsEvent] {
+    def eventType: EventType = tag[EventTypeTag][String]("AccountsEvent0")
+  }
+}
+
+/**
+  * Withdraw event when the Lsn is not yet known.
+  */
+case class Withdraw0(from: User, to: User, amount: Money)
+
+object Withdraw0 {
+
+  /**
+    * Not used in Vault.
+    */
+  implicit val eventTyper: EventTyper[Withdraw0] = new EventTyper[Withdraw0] {
     def eventType: EventType = tag[EventTypeTag][String]("AccountsEvent0")
   }
 }

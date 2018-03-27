@@ -25,7 +25,7 @@ object Accounts {
         from <- daemon.getNodeId
         balanceOk <- balance(from).map(_ >= amount)
         _ <- if (balanceOk)
-          daemon.send[AccountsEvent0](Left(Withdraw0(from, to, amount)))
+          daemon.send(Withdraw0(from, to, amount))
         else F.unit
       } yield ()
 
