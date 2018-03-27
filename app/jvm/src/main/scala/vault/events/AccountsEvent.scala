@@ -24,7 +24,7 @@ case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends 
 
 object AccountsEvent {
   // Both Events can be received.
-  type AccountsEvent0 = Either[Withdraw0, AccountsEvent]
+  type AccountsEvent0 = Either[Withdraw0, Deposit]
 
   def handler[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
       s: Stream[F, Event]): Stream[F, Unit] =
@@ -38,13 +38,13 @@ object AccountsEvent {
     def convert(e: Event): Option[AccountsEvent] =
       circeDecode[AccountsEvent0](e.payload)
         .map {
-          case Right(a) => a
+          case Right(deposit)                    => deposit
           case Left(Withdraw0(from, to, amount)) => Withdraw(from, to, amount, e.lsn)
         }
         .toOption
         .filter {
           case Withdraw(from, _, _, _) => e.lsn.nodeId == from
-          case Deposit(from, _, _, _) => e.lsn.nodeId == from
+          case Deposit(from, _, _, _)  => e.lsn.nodeId == from
         }
 
     _.map(convert).unNone
