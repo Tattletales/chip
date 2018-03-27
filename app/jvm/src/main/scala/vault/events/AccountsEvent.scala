@@ -1,6 +1,6 @@
 package vault.events
 
-import cats.{Functor, Monad}
+import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
 import backend.events.EventTyper
@@ -123,8 +123,14 @@ object AccountsEvent {
   private def replicate[F[_]](db: Database[F], daemon: GossipDaemon[F], accounts: Accounts[F])(
       event: AccountsEvent)(implicit F: Effect[F]): F[Unit] =
     event match {
-      case Withdraw(from, to, amount, lsn) => ???
-      case Deposit(from, to, amount, dependsOn) => ???
+      case Withdraw(from, to, amount, lsn) =>
+        val deposit = daemon.send[AccountsEvent0](Right(Deposit(from, to, amount, lsn)))
+
+        daemon.getNodeId.map(_ == to).ifM(deposit, F.unit)
+
+      case Deposit(from, to, amount, dependsOn) =>
+        // Transfer the money. Succeeds only if both succeeded.
+        F.unit.map2(F.unit)((_, _) => ())
     }
 
   /**
