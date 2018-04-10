@@ -8,6 +8,7 @@ import backend.storage.Database
 import doobie.implicits._
 import vault.implicits._
 import backend.implicits._
+import cats.effect.Effect
 import io.circe.generic.auto._
 import io.circe.Encoder
 import fs2.Stream
@@ -22,7 +23,7 @@ trait Accounts[F[_]] {
 }
 
 object Accounts {
-  def simple[F[_]](daemon: GossipDaemon[F], db: Database[F])(implicit F: Monad[F]): Accounts[F] =
+  def simple[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F])(implicit F: Monad[F]): Accounts[F] =
     new Accounts[F] {
       def transfer(to: User, amount: Money): F[Unit] =
         for {

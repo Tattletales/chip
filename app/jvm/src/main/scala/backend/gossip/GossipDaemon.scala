@@ -65,6 +65,6 @@ sealed abstract class GossipDaemonInstances {
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
 
-      def getLog(lsn: Lsn): F[List[Event]] = implicitly[Applicative[F]].pure(List.empty)
+      def getLog: F[List[Event]] = implicitly[Applicative[F]].pure(List.empty)
     }
 }

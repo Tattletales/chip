@@ -1,5 +1,6 @@
 package vault.model
 
+import doobie.util.meta.Meta
 import io.circe.{Decoder, Encoder}
 import shapeless.tag
 import vault.model.Account._
@@ -9,4 +10,7 @@ trait implicits {
 
   implicit def MoneyDecoder(implicit D: Decoder[Double]): Decoder[Money] =
     D.map(tag[MoneyTag][Double])
+
+  implicit def doubleMeta(implicit M: Meta[Double]): Meta[Money] =
+    M.xmap(tag[MoneyTag][Double], a => a)
 }
