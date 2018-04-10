@@ -29,7 +29,7 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
 
         accounts = Accounts.simple[F](daemon, db)
 
-        handler = AccountsEvent.handler(daemon, db, accounts)(daemon.subscribe)
+        handler = AccountsEvent.handleEvents(daemon, db, accounts)(daemon.subscribe)
 
         ec <- Stream(handler, ???).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec

@@ -26,10 +26,20 @@ object AccountsEvent {
   // Both Events can be received.
   type AccountsEvent0 = Either[Withdraw0, Deposit]
 
-  def handler[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
+  def handleEvents[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
       s: Stream[F, Event]): Stream[F, Unit] =
-    s.through(decode).through(causal(accounts)).evalMap(handleEvent(daemon, db, accounts)(_))
+    handler(daemon, db, accounts)(s)(handleEvent(daemon, db, accounts))
 
+  def handler[F[_]: Effect, O](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
+      s: Stream[F, Event])(f: AccountsEvent => F[O]): Stream[F, O] =
+    s.through(decode).through(causal(accounts)).evalMap(f)
+  
+  
+  //def foo[F[_]: Effect] = {
+  //  val lf: F[List[Event]] = ???
+  //  lf.map(_.map(decode))
+  //}
+  
   /**
     * Converts Events in AccountsEvents.
     * Ignores AccountsEvents with mismatching senders.

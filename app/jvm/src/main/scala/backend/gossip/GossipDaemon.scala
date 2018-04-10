@@ -24,7 +24,8 @@ trait GossipDaemon[F[_]] {
   def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit]
   def subscribe
     : Stream[F, Event] // TODO should be val? no need to create new stream for every call
-  def getLog(lsn: Lsn): F[List[Event]]
+  def getLog: F[List[Event]]
+  //def replayLog(lsn: Lsn): F[Unit]
 }
 
 object GossipDaemon extends GossipDaemonInstances {
@@ -46,7 +47,9 @@ sealed abstract class GossipDaemonInstances {
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
 
-      def getLog(lsn: Lsn): F[List[Event]] = ???
+      def getLog: F[List[Event]] = ???
+      
+      //def replayLog(lsn: Lsn): F[Unit] = ???
     }
 
   implicit def mock[F[_]: Monad: Sync](eventQueue: Queue[F, Event]): GossipDaemon[F] =
