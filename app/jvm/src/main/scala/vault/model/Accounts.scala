@@ -23,7 +23,8 @@ trait Accounts[F[_]] {
 }
 
 object Accounts {
-  def simple[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F])(implicit F: Monad[F]): Accounts[F] =
+  def simple[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F])(
+      implicit F: Monad[F]): Accounts[F] =
     new Accounts[F] {
       def transfer(to: User, amount: Money): F[Unit] =
         for {
@@ -40,13 +41,18 @@ object Accounts {
            WHERE holder = $of
          """).map(_.head) // TODO unsafe
 
+      // TODO: converting from List to Stream, and back to a List is a bit silly.
       def transactions(of: User): F[List[AccountsEvent]] = {
         val events = Stream.force(daemon.getLog.map(es => Stream(es: _*).covary[F]))
-        
-        AccountsEvent.handler(daemon, db, this)(events)(???).filter(???)
-        
-        val s: Stream[F, AccountsEvent] = ???
-        s.compile.toList
+
+        AccountsEvent
+          .handler(daemon, db, this)(events)(F.pure)
+          .filter { // Keep transactions related to the user
+            case Withdraw(from, _, _, _) => from == of
+            case Deposit(_, to, _, _)    => to == of
+          }
+          .compile
+          .toList
       }
     }
 }
