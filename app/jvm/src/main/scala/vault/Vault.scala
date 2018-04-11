@@ -11,6 +11,7 @@ import backend.storage.Database
 import shapeless.tag
 import org.http4s.circe._
 import vault.events.AccountsEvent
+import vault.events.AccountsEvent.handleAccountsEvents
 import vault.model.Accounts
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -29,8 +30,9 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
 
         accounts = Accounts.simple[F](daemon, db)
 
-        handler = AccountsEvent.handleEvents(daemon, db, accounts)(daemon.subscribe)
+        handler = daemon.subscribe.through(handleAccountsEvents(daemon, db, accounts))
 
+        // TODO add server
         ec <- Stream(handler, ???).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }

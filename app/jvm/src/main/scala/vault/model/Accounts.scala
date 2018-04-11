@@ -12,7 +12,7 @@ import cats.effect.Effect
 import io.circe.generic.auto._
 import io.circe.Encoder
 import fs2.Stream
-import vault.events.AccountsEvent.AccountsEvent0
+import vault.events.AccountsEvent.{AccountsEvent0, decodeAndCausalOrder}
 import vault.events._
 import vault.model.Account._
 
@@ -45,8 +45,8 @@ object Accounts {
       def transactions(of: User): F[List[AccountsEvent]] = {
         val events = Stream.force(daemon.getLog.map(es => Stream(es: _*).covary[F]))
 
-        AccountsEvent
-          .handler(daemon, db, this)(events)(F.pure)
+        events
+          .through(decodeAndCausalOrder(this))
           .filter { // Keep transactions related to the user
             case Withdraw(from, _, _, _) => from == of
             case Deposit(_, to, _, _)    => to == of

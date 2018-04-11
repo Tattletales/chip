@@ -7,7 +7,7 @@ import backend.events.EventTyper
 import backend.events.Subscriber.{Event, EventType, EventTypeTag, Lsn}
 import backend.gossip.GossipDaemon
 import backend.gossip.model.Node.NodeId
-import shapeless.{:+:, CNil, Inl, Inr, tag}
+import shapeless.tag
 import fs2.{Pipe, Pull, Sink, Stream}
 import fs2.Stream.InvariantOps
 import io.circe.generic.auto._
@@ -19,6 +19,12 @@ import vault.model.Account.{Money, User}
 import vault.model.Accounts
 import doobie.implicits._
 
+/**
+  * A transaction is split into two events Withdraw and Deposit so the events only relate
+  * to the account of the sender.
+  *
+  * The Deposit event depends on the Withdraw through the latter's lsn.
+  */
 sealed trait AccountsEvent
 case class Withdraw(from: User, to: User, amount: Money, lsn: Lsn) extends AccountsEvent
 case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends AccountsEvent
@@ -27,20 +33,14 @@ object AccountsEvent {
   // Both Events can be received.
   type AccountsEvent0 = Either[Withdraw0, Deposit]
 
-  def handleEvents[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
-      s: Stream[F, Event]): Stream[F, Unit] =
-    handler(daemon, db, accounts)(s)(handleEvent(daemon, db, accounts))
+  def handleAccountsEvents[F[_]: Effect](daemon: GossipDaemon[F],
+                                         db: Database[F],
+                                         accounts: Accounts[F]): Sink[F, Event] =
+    _.through(decodeAndCausalOrder(accounts)).evalMap(handleEvent(daemon, db, accounts))
 
-  def handler[F[_]: Effect, O](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
-      s: Stream[F, Event])(f: AccountsEvent => F[O]): Stream[F, O] =
-    s.through(decode).through(causal(accounts)).evalMap(f)
-  
-  
-  //def foo[F[_]: Effect] = {
-  //  val lf: F[List[Event]] = ???
-  //  lf.map(_.map(decode))
-  //}
-  
+  def decodeAndCausalOrder[F[_]: Effect, O](accounts: Accounts[F]): Pipe[F, Event, AccountsEvent] =
+    _.through(decode).through(causalOrder(accounts))
+
   /**
     * Converts Events in AccountsEvents.
     * Ignores AccountsEvents with mismatching senders.
@@ -67,8 +67,8 @@ object AccountsEvent {
     *   - Deposited and withdrawn amounts do not match.
     *   - Balance is insufficent.
     */
-  private def causal[F[_]](accounts: Accounts[F])(
-      implicit F: Monad[F]): Pipe[F, AccountsEvent, AccountsEvent] = {
+  private def causalOrder[F[_]: Monad](
+      accounts: Accounts[F]): Pipe[F, AccountsEvent, AccountsEvent] = {
     def go(s: Stream[F, AccountsEvent],
            accounts: Accounts[F],
            waitingFor: Map[Lsn, Deposit],
@@ -125,7 +125,7 @@ object AccountsEvent {
   }
 
   /**
-    * Handles AccountsEvents.
+    * Handles an AccountsEvent.
     */
   private def handleEvent[F[_]](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
       event: AccountsEvent)(implicit F: Effect[F]): F[Unit] =
@@ -160,6 +160,7 @@ object AccountsEvent {
 
 /**
   * Withdraw event when the Lsn is not yet known.
+  * Can be seen as a partially-applied Withdraw
   */
 case class Withdraw0(from: User, to: User, amount: Money)
 
