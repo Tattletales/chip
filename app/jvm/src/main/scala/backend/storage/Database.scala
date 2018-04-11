@@ -8,10 +8,9 @@ import shapeless.tag.@@
 import backend.storage.Database.Column
 
 trait Database[F[_]] {
-  def query[R: Composite](q: Fragment): F[List[R]] // TODO remove Composite http://tpolecat.github.io/doobie/docs/12-Custom-Mappings.html
+  def query[R: Composite](q: Fragment): F[List[R]]
   def insert(q: Fragment, qs: Fragment*): F[Unit]
   def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[Option[R]]
-  def remove(q: Fragment): F[Unit]
   def exists(q: Fragment): F[Boolean]
 }
 
@@ -23,8 +22,6 @@ object Database extends DatabaseInstances {
 }
 
 sealed abstract class DatabaseInstances {
-  private[this] val logger = org.log4s.getLogger
-
   implicit def doobieDatabase[F[_]: Monad](xa: Transactor[F]): Database[F] =
     new Database[F] {
       def query[R: Composite](q: Fragment): F[List[R]] =
@@ -46,8 +43,6 @@ sealed abstract class DatabaseInstances {
           }
           .transact(xa)
           .map(a => a.toOption)
-
-      def remove(q: Fragment): F[Unit] = ???
 
       def exists(q: Fragment): F[Boolean] =
         q.query[Int].unique.map(_ > 0).transact(xa)
