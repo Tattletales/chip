@@ -1,13 +1,14 @@
 package vault.model
 
 import backend.events.Subscriber.Lsn
-import cats.Monad
+import cats.{Applicative, Functor, Monad, MonadError}
 import cats.implicits._
 import backend.gossip.GossipDaemon
-import backend.storage.Database
+import backend.storage.{Database, KVStore}
 import doobie.implicits._
 import vault.implicits._
 import backend.implicits._
+import cats.data.OptionT
 import cats.effect.Effect
 import io.circe.generic.auto._
 import io.circe.Encoder
@@ -66,4 +67,21 @@ object Accounts {
           .toList
       }
     }
+
+  def mock[F[_]](kvs: KVStore[F, User, Money], daemon: GossipDaemon[F])(
+      implicit F: Applicative[F]): Accounts[F] = new Accounts[F] {
+    def transfer(to: User, amount: Money): F[Unit] =
+      (for {
+        from <- OptionT.liftF(daemon.getNodeId)
+        fromBalance <- OptionT(kvs.get(from))
+        _ <- OptionT.liftF(kvs.put(from, tag[MoneyTag][Double](fromBalance - amount)))
+        toBalance <- OptionT(kvs.get(to))
+        _ <- OptionT.liftF(kvs.put(to, tag[MoneyTag][Double](toBalance + amount)))
+      } yield ()).getOrElse(())
+
+    def balance(of: User): F[Money] =
+      kvs.get(of).map(_.getOrElse(tag[MoneyTag][Double](Double.MinValue)))
+
+    def transactions(of: User): F[List[AccountsEvent]] = F.pure(List.empty)
+  }
 }
