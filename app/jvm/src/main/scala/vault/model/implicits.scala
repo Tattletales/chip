@@ -1,7 +1,9 @@
 package vault.model
 
+import cats.Functor
 import doobie.util.meta.Meta
 import io.circe.{Decoder, Encoder}
+import org.http4s.{Entity, EntityDecoder}
 import shapeless.tag
 import vault.model.Account._
 

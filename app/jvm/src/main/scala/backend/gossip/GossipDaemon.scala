@@ -4,8 +4,8 @@ import cats.effect.Sync
 import cats.implicits._
 import cats.{Applicative, Monad}
 import backend.events.Subscriber._
-import backend.events.Subscriber.implicits._
 import backend.events.{EventTyper, Subscriber}
+import backend.implicits._
 import fs2.async.mutable.Queue
 import fs2.Stream
 import backend.gossip.model.Node.{NodeId, NodeIdTag}
@@ -33,7 +33,7 @@ object GossipDaemon extends GossipDaemonInstances {
 }
 
 sealed abstract class GossipDaemonInstances {
-  implicit def localhost[F[_]: EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
+  implicit def localhost[F[_]: EntityDecoder[?[_], List[Event]] : EntityDecoder[?[_], NodeId] : EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
       httpClient: HttpClient[F],
       subscriber: Subscriber[F]): GossipDaemon[F] =
     new GossipDaemon[F] {
@@ -47,7 +47,7 @@ sealed abstract class GossipDaemonInstances {
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
 
-      def getLog: F[List[Event]] = ???
+      def getLog: F[List[Event]] = httpClient.get[List[Event]](tag[UriTag][String](s"$root/log"))
       
       //def replayLog(lsn: Lsn): F[Unit] = ???
     }

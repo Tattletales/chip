@@ -14,6 +14,7 @@ import backend.events.Subscriber.{Event, EventIdTag, EventTypeTag, Lsn, PayloadT
 import fs2.Stream
 import fs2.interop.reactivestreams._
 import backend.gossip.model.Node.{NodeId, NodeIdTag}
+import cats.Functor
 import io.circe.{Decoder, Encoder}
 import org.http4s
 import org.http4s.{DecodeResult, EntityDecoder, Message}
@@ -35,37 +36,6 @@ object Subscriber extends SubscriberInstances {
 
   sealed trait PayloadTag
   type Payload = String @@ PayloadTag
-
-  object implicits {
-    /* --- NodeId --- */
-    implicit def nodeIdEntityDecoder[F[_]](
-        implicit D: EntityDecoder[F, String]): EntityDecoder[F, NodeId] =
-      new EntityDecoder[F, NodeId] {
-        def decode(msg: Message[F], strict: Boolean): DecodeResult[F, NodeId] =
-          D.decode(msg, strict).asInstanceOf[DecodeResult[F, NodeId]]
-        def consumes: Set[http4s.MediaRange] = D.consumes
-      }
-
-    implicit def nodeIdEncoder(implicit E: Encoder[String]): Encoder[NodeId] =
-      E.asInstanceOf[Encoder[NodeId]]
-
-    implicit def nodeIdDecoder(implicit E: Decoder[String]): Decoder[NodeId] =
-      E.asInstanceOf[Decoder[NodeId]]
-
-    /* --- EventId --- */
-    implicit def eventIdEncoder(implicit E: Encoder[Int]): Encoder[EventId] =
-      E.asInstanceOf[Encoder[EventId]]
-
-    implicit def eventIdDecoder(implicit E: Decoder[Int]): Decoder[EventId] =
-      E.asInstanceOf[Decoder[EventId]]
-
-    /* --- Payload --- */
-    implicit def payloadEncoder(implicit E: Encoder[String]): Encoder[Payload] =
-      E.asInstanceOf[Encoder[Payload]]
-
-    implicit def payloadDecoder(implicit E: Decoder[String]): Decoder[Payload] =
-      E.asInstanceOf[Decoder[Payload]]
-  }
 
   case class Lsn(nodeId: NodeId, eventId: EventId)
 

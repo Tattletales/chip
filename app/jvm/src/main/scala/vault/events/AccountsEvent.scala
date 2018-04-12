@@ -17,6 +17,7 @@ import backend.implicits._
 import backend.storage.Database
 import vault.model.Account.{Money, User}
 import vault.model.Accounts
+import doobie.implicits._
 
 sealed trait AccountsEvent
 case class Withdraw(from: User, to: User, amount: Money, lsn: Lsn) extends AccountsEvent
@@ -134,9 +135,19 @@ object AccountsEvent {
 
         daemon.getNodeId.map(_ == to).ifM(deposit, F.unit)
 
-      case Deposit(from, to, amount, dependsOn) =>
+      case Deposit(from, to, amount, _) =>
         // Transfer the money. Succeeds only if both succeeded.
-        F.unit.map2(F.unit)((_, _) => ())
+        db.insert(
+          sql"""
+               |UPDATE accounts
+               |SET balance = balance - $amount
+               |WHERE holder = $from
+             """.stripMargin,
+          sql"""
+               |UPDATE accounts
+               |SET balance = balance + $amount
+               |WHERE holder = $to
+          """.stripMargin)
     }
 
   /**
