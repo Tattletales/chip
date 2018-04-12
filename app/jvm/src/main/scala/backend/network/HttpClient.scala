@@ -10,6 +10,8 @@ import shapeless.tag.@@
 trait HttpClient[F[_]] {
   def get[Response: EntityDecoder[F, ?]](uri: Uri): F[Response]
 
+  def getAndIgnore[Response: EntityDecoder[F, ?]](uri: Uri): F[Unit]
+
   def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
       implicit T: EntityEncoder[F, T]
   ): F[Option[Response]]
@@ -37,6 +39,9 @@ sealed abstract class HttpClientInstances {
     new HttpClient[F] {
       def get[Response: EntityDecoder[F, ?]](uri: Uri): F[Response] =
         client.expect[Response](uri)
+
+      def getAndIgnore[Response: EntityDecoder[F, ?]](uri: Uri): F[Unit] =
+        client.expect[Response](uri).map(_ => ())
 
       def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
           implicit w: EntityEncoder[F, T]

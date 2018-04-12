@@ -33,22 +33,24 @@ object GossipDaemon extends GossipDaemonInstances {
 }
 
 sealed abstract class GossipDaemonInstances {
-  implicit def localhost[F[_]: EntityDecoder[?[_], List[Event]] : EntityDecoder[?[_], NodeId] : EntityDecoder[?[_], String]: EntityEncoder[?[_], Json]](
-      httpClient: HttpClient[F],
-      subscriber: Subscriber[F]): GossipDaemon[F] =
+  implicit def localhost[
+      F[_]: EntityDecoder[?[_], List[Event]]: EntityDecoder[?[_], NodeId]: EntityDecoder[
+        ?[_],
+        String]: EntityEncoder[?[_], Json]](httpClient: HttpClient[F],
+                                            subscriber: Subscriber[F]): GossipDaemon[F] =
     new GossipDaemon[F] {
       private val root = "localhost:59234"
 
       def getNodeId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
 
       def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit] =
-        httpClient.unsafePostAndIgnore(tag[UriTag][String](s"$root/gossip/${M.eventType}"),
-                                       m.asJson)
+        httpClient.getAndIgnore[String](
+          tag[UriTag][String](s"$root/gossip?t=${M.eventType.toString}&d=${m.asJson.noSpaces}"))
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
 
       def getLog: F[List[Event]] = httpClient.get[List[Event]](tag[UriTag][String](s"$root/log"))
-      
+
       //def replayLog(lsn: Lsn): F[Unit] = ???
     }
 
