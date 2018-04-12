@@ -12,6 +12,7 @@ import cats.effect.Effect
 import io.circe.generic.auto._
 import io.circe.Encoder
 import fs2.Stream
+import shapeless.tag
 import vault.events.AccountsEvent.{AccountsEvent0, decodeAndCausalOrder}
 import vault.events._
 import vault.model.Account._
@@ -39,7 +40,17 @@ object Accounts {
            SELECT balance
            FROM accounts
            WHERE holder = $of
-         """).map(_.head) // TODO unsafe
+         """).map(_.headOption.getOrElse(initBalance(of, tag[MoneyTag][Double](100))))
+
+      // Helper method which initializes an account with a balance of 100.0
+      def initBalance(u: User, a: Money): Money = {
+        db.insert(sql"""
+           |INSERT INTO accounts (holder, balance)
+           |VALUES($u, $a)
+        """)
+
+        a
+      }
 
       // TODO: converting from List to Stream, and back to a List is a bit silly.
       def transactions(of: User): F[List[AccountsEvent]] = {
