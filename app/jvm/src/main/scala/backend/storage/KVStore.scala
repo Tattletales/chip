@@ -32,7 +32,7 @@ object KVStore {
       def get(k: K): F[Option[V]] = db.query(sql"""
            SELECT value
            FROM kv_store
-           WHERE $k = key
+           WHERE key = $k
          """.stripMargin).map(_.headOption)
 
       def put(k: K, v: V): F[Unit] = put_*((k, v))
@@ -40,7 +40,7 @@ object KVStore {
       def put_*(x: (K, V), xs: (K, V)*): F[Unit] =
         db.insert(update(x._1, x._2), xs.map { case (k, v) => update(k, v) }: _*)
 
-      def remove(k: K): F[Unit] = ???
+      def remove(k: K): F[Unit] = db.insert(sql"DELETE FROM kv_store WHERE key = $k")
 
       private def update(k: K, v: V): Fragment = sql"""
         UPDATE kv_store
