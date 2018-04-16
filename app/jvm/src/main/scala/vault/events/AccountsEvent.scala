@@ -1,6 +1,6 @@
 package vault.events
 
-import cats.Monad
+import cats.{Functor, Monad, MonadError}
 import cats.effect.Effect
 import cats.implicits._
 import backend.events.EventTyper
@@ -14,8 +14,9 @@ import io.circe.generic.auto._
 import io.circe.parser.{decode => circeDecode}
 import vault.implicits._
 import backend.implicits._
-import backend.storage.Database
-import vault.model.Account.{Money, User}
+import backend.storage.{Database, KVStore}
+import cats.data.OptionT
+import vault.model.Account.{Money, MoneyTag, User}
 import vault.model.Accounts
 import doobie.implicits._
 
@@ -34,9 +35,9 @@ object AccountsEvent {
   type AccountsEvent0 = Either[Withdraw0, Deposit]
 
   def handleAccountsEvents[F[_]: Effect](daemon: GossipDaemon[F],
-                                         db: Database[F],
+                                         kvs: KVStore[F, User, Money],
                                          accounts: Accounts[F]): Sink[F, Event] =
-    _.through(decodeAndCausalOrder(accounts)).evalMap(handleEvent(daemon, db, accounts))
+    _.through(decodeAndCausalOrder(accounts)).evalMap(handleEvent(daemon, kvs, accounts))
 
   def decodeAndCausalOrder[F[_]: Effect, O](accounts: Accounts[F]): Pipe[F, Event, AccountsEvent] =
     _.through(decode).through(causalOrder(accounts))
@@ -127,8 +128,10 @@ object AccountsEvent {
   /**
     * Handles an AccountsEvent.
     */
-  private def handleEvent[F[_]](daemon: GossipDaemon[F], db: Database[F], accounts: Accounts[F])(
-      event: AccountsEvent)(implicit F: Effect[F]): F[Unit] =
+  private def handleEvent[F[_]: Functor](
+      daemon: GossipDaemon[F],
+      kvs: KVStore[F, User, Money],
+      accounts: Accounts[F])(event: AccountsEvent)(implicit F: Effect[F]): F[Unit] =
     event match {
       case Withdraw(from, to, amount, lsn) =>
         val deposit = daemon.send[AccountsEvent](Deposit(from, to, amount, lsn))
@@ -137,17 +140,18 @@ object AccountsEvent {
 
       case Deposit(from, to, amount, _) =>
         // Transfer the money. Succeeds only if both succeeded.
-        db.insert(
-          sql"""
-               |UPDATE accounts
-               |SET balance = balance - $amount
-               |WHERE holder = $from
-             """.stripMargin,
-          sql"""
-               |UPDATE accounts
-               |SET balance = balance + $amount
-               |WHERE holder = $to
-          """.stripMargin)
+        for {
+          currentFrom <- kvs
+            .get(from)
+            .map(_.getOrElse(throw new IllegalArgumentException(s"No account for $from.")))
+
+          currentTo <- kvs
+            .get(to)
+            .map(_.getOrElse(throw new IllegalArgumentException(s"No account for $to.")))
+
+          _ <- kvs.put_*((from, tag[MoneyTag][Double](currentFrom - amount)),
+                         (to, tag[MoneyTag][Double](currentTo + amount)))
+        } yield ()
     }
 
   /**

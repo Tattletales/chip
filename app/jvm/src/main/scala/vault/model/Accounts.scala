@@ -25,7 +25,7 @@ trait Accounts[F[_]] {
 }
 
 object Accounts {
-  def simple[F[_]: Effect](daemon: GossipDaemon[F], db: Database[F])(
+  def simple[F[_]: Effect](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
       implicit F: Monad[F]): Accounts[F] =
     new Accounts[F] {
       def transfer(to: User, amount: Money): F[Unit] =
@@ -37,19 +37,12 @@ object Accounts {
           else F.unit
         } yield ()
 
-      def balance(of: User): F[Money] = db.query[Money](sql"""
-           SELECT balance
-           FROM accounts
-           WHERE holder = $of
-         """).map(_.headOption.getOrElse(initBalance(of, tag[MoneyTag][Double](100))))
+      def balance(of: User): F[Money] =
+        kvs.get(of).map(_.getOrElse(initBalance(of, tag[MoneyTag][Double](100))))
 
       // Helper method which initializes an account with a balance of 100.0
       def initBalance(u: User, a: Money): Money = {
-        db.insert(sql"""
-           |INSERT INTO accounts (holder, balance)
-           |VALUES($u, $a)
-        """)
-
+        kvs.put(u, a)
         a
       }
 
@@ -69,7 +62,7 @@ object Accounts {
     }
 
   def mock[F[_]](kvs: KVStore[F, User, Money], daemon: GossipDaemon[F])(
-      implicit F: Applicative[F]): Accounts[F] = new Accounts[F] {
+      implicit F: Monad[F]): Accounts[F] = new Accounts[F] {
     def transfer(to: User, amount: Money): F[Unit] =
       (for {
         from <- OptionT.liftF(daemon.getNodeId)

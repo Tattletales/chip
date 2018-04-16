@@ -7,11 +7,15 @@ import fs2.StreamApp.ExitCode
 import fs2._
 import backend.gossip.GossipDaemon
 import backend.gossip.model.Node._
-import backend.storage.Database
+import backend.storage.{Database, KVStore}
+import vault.model.Account.User
 import shapeless.tag
 import org.http4s.circe._
 import vault.events.AccountsEvent
 import vault.events.AccountsEvent.handleAccountsEvents
+import vault.implicits._
+import backend.implicits._
+import vault.model.Account.Money
 import vault.model.Accounts
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -25,12 +29,13 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
         eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
 
         db: Database[F] = Database.doobieDatabase[F](xa)
+        kvs: KVStore[F, User, Money] = KVStore.dbKVS[F, User, Money](db)
 
         daemon = GossipDaemon.mock[F](eventQueue)
 
-        accounts = Accounts.simple[F](daemon, db)
+        accounts = Accounts.simple[F](daemon, kvs)
 
-        handler = daemon.subscribe.through(handleAccountsEvents(daemon, db, accounts))
+        handler = daemon.subscribe.through(handleAccountsEvents(daemon, kvs, accounts))
 
         // TODO add server
         ec <- Stream(handler, ???).join(2).drain ++ Stream.emit(ExitCode.Success)
