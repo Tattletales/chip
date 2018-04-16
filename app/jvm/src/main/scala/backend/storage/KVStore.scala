@@ -20,9 +20,10 @@ object KVStore {
     new KVStore[State[Map[K, V], ?], K, V] {
       def get(k: K): State[Map[K, V], Option[V]] = State.inspect(_.get(k))
       def put(k: K, v: V): State[Map[K, V], Unit] = State.modify(_ + (k -> v))
-      def put_*(kv: (K, V), kvs: (K, V)*) = kvs.foldLeft(put(kv._1, kv._2)) {
-        case (state, (k, v)) => state.modify(_ + (k -> v))
-      }
+      def put_*(kv: (K, V), kvs: (K, V)*): State[Map[K, V], Unit] =
+        kvs.foldLeft(put(kv._1, kv._2)) {
+          case (state, (k, v)) => state.modify(_ + (k -> v))
+        }
       def remove(k: K): State[Map[K, V], Unit] = State.modify(_ - k)
     }
 
