@@ -1,6 +1,13 @@
 package backend.events
 
-import backend.events.Subscriber.{EventId, EventIdTag, EventType, EventTypeTag, Payload, PayloadTag}
+import backend.events.Subscriber.{
+  EventId,
+  EventIdTag,
+  EventType,
+  EventTypeTag,
+  Payload,
+  PayloadTag
+}
 import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import cats.Functor
 import io.circe.{Decoder, Encoder}

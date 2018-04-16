@@ -5,4 +5,3 @@ object implicits
     with utils.EitherParsing
     with gossip.model.decoderImplicits
     with events.implicits
-

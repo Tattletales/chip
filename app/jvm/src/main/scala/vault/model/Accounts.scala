@@ -54,7 +54,7 @@ object Accounts {
           .through(decodeAndCausalOrder(this))
           .filter { // Keep transactions related to the user
             case Withdraw(from, _, _, _) => from == of
-            case Deposit(_, to, _, _)    => to == of
+            case Deposit(_, to, _, _) => to == of
           }
           .compile
           .toList

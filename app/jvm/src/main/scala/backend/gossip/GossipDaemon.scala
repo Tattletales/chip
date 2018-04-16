@@ -22,7 +22,8 @@ import shapeless.tag
 trait GossipDaemon[F[_]] {
   def getNodeId: F[NodeId]
   def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit]
-  def subscribe: Stream[F, Event] // TODO should be val? no need to create new stream for every call
+  def subscribe
+    : Stream[F, Event] // TODO should be val? no need to create new stream for every call
   def getLog: F[List[Event]]
   //def replayLog(lsn: Lsn): F[Unit]
 }

@@ -1,5 +1,3 @@
 package vault.model
 
-class Transaction {
-
-}
+class Transaction {}

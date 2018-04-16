@@ -50,13 +50,13 @@ object AccountsEvent {
     def convert(e: Event): Option[AccountsEvent] =
       circeDecode[AccountsEvent0](e.payload)
         .map {
-          case Right(deposit)                    => deposit
+          case Right(deposit) => deposit
           case Left(Withdraw0(from, to, amount)) => Withdraw(from, to, amount, e.lsn)
         }
         .toOption
         .filter {
           case Withdraw(from, _, _, _) => e.lsn.nodeId == from
-          case Deposit(from, _, _, _)  => e.lsn.nodeId == from
+          case Deposit(from, _, _, _) => e.lsn.nodeId == from
         }
 
     _.map(convert).unNone
