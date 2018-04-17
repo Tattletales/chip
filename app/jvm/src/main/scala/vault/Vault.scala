@@ -15,6 +15,7 @@ import vault.events.AccountsEvent
 import vault.events.AccountsEvent.handleAccountsEvents
 import vault.implicits._
 import backend.implicits._
+import vault.api.Server
 import vault.model.Account.Money
 import vault.model.Accounts
 
@@ -29,16 +30,20 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
         eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
 
         db: Database[F] = Database.doobieDatabase[F](xa)
-        kvs: KVStore[F, User, Money] = KVStore.dbKVS[F, User, Money](db)
+        kvs: KVStore[F, User, Money] = KVStore
+          .mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
 
         daemon = GossipDaemon.mock[F](eventQueue)
 
-        accounts = Accounts.simple[F](daemon, kvs)
+        accounts = Accounts
+          .mock[F](daemon, kvs)
+          .withAccounts(tag[NodeIdTag][String]("alice"), tag[NodeIdTag][String]("bob"))
 
         handler = daemon.subscribe.through(handleAccountsEvents(daemon, kvs, accounts))
 
-        // TODO add server
-        ec <- Stream(handler, ???).join(2).drain ++ Stream.emit(ExitCode.Success)
+        server = Server.authed(accounts, daemon).run
+
+        ec <- Stream(handler, server).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 

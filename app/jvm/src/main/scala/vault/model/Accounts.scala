@@ -22,6 +22,7 @@ trait Accounts[F[_]] {
   def transfer(to: User, amount: Money): F[Unit]
   def balance(of: User): F[Money]
   def transactions(of: User): F[List[AccountsEvent]]
+  def withAccounts(us: User*): Accounts[F]
 }
 
 object Accounts {
@@ -54,14 +55,16 @@ object Accounts {
           .through(decodeAndCausalOrder(this))
           .filter { // Keep transactions related to the user
             case Withdraw(from, _, _, _) => from == of
-            case Deposit(_, to, _, _) => to == of
+            case Deposit(_, to, _, _)    => to == of
           }
           .compile
           .toList
       }
+
+      def withAccounts(us: User*): Accounts[F] = this
     }
 
-  def mock[F[_]](kvs: KVStore[F, User, Money], daemon: GossipDaemon[F])(
+  def mock[F[_]](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
       implicit F: Monad[F]): Accounts[F] = new Accounts[F] {
     def transfer(to: User, amount: Money): F[Unit] =
       (for {
@@ -73,8 +76,19 @@ object Accounts {
       } yield ()).getOrElse(())
 
     def balance(of: User): F[Money] =
-      kvs.get(of).map(_.getOrElse(tag[MoneyTag][Double](Double.MinValue)))
+      kvs.get(of).map(_.getOrElse(initBalance(of, tag[MoneyTag][Double](100))))
+
+    // Helper method which initializes an account with a balance of 100.0
+    def initBalance(u: User, a: Money): Money = {
+      kvs.put(u, a)
+      a
+    }
 
     def transactions(of: User): F[List[AccountsEvent]] = F.pure(List.empty)
+
+    def withAccounts(us: User*): Accounts[F] = {
+      us.foreach(kvs.put(_, tag[MoneyTag][Double](100.0)))
+      this
+    }
   }
 }
