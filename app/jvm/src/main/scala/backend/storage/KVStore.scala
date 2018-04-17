@@ -2,6 +2,7 @@ package backend.storage
 
 import cats.{Applicative, Functor}
 import cats.data.State
+import cats.effect.Effect
 import cats.implicits._
 import doobie.implicits._
 import doobie.util.composite.Composite
@@ -49,20 +50,22 @@ object KVStore {
       """.stripMargin
     }
 
-  def mapKVS[F[_]: Applicative, K, V]: KVStore[F, K, V] = new KVStore[F, K, V] {
+  def mapKVS[F[_], K, V](implicit F: Effect[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
     val map = scala.collection.mutable.HashMap.empty[K, V]
 
-    override def get(k: K): F[Option[V]] = implicitly[Applicative[F]].pure(map.get(k))
+    def get(k: K): F[Option[V]] =
+      F.delay(map.get(k))
 
-    override def put(k: K, v: V): F[Unit] = implicitly[Applicative[F]].pure(map.put(k, v))
+    def put(k: K, v: V): F[Unit] =
+      F.delay(map.put(k, v))
 
-    override def put_*(kv: (K, V), kvs: (K, V)*): F[Unit] = {
-      (kv +: kvs).foreach {
-        case (k, v) => map.put(k, v)
+    def put_*(kv: (K, V), kvs: (K, V)*): F[Unit] =
+      F.delay {
+        (kv +: kvs).foreach {
+          case (k, v) => map.put(k, v)
+        }
       }
-      implicitly[Applicative[F]].pure(())
-    }
 
-    override def remove(k: K): F[Unit] = ???
+    def remove(k: K): F[Unit] = F.delay(map.remove(k))
   }
 }
