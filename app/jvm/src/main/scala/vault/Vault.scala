@@ -29,15 +29,16 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
       for {
         eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
 
-        db: Database[F] = Database.doobieDatabase[F](xa)
+        //db: Database[F] = Database.doobieDatabase[F](xa)
         kvs: KVStore[F, User, Money] = KVStore
           .mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
 
         daemon = GossipDaemon.mock[F](eventQueue)
 
-        accounts = Accounts
-          .mock[F](daemon, kvs)
-          .withAccounts(tag[NodeIdTag][String]("alice"), tag[NodeIdTag][String]("bob"))
+        accounts <- Stream.eval(
+          Accounts
+            .mock[F](daemon, kvs)
+            .withAccounts(tag[NodeIdTag][String]("alice"), tag[NodeIdTag][String]("bob")))
 
         handler = daemon.subscribe.through(handleAccountsEvents(daemon, kvs, accounts))
 

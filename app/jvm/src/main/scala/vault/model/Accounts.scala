@@ -1,7 +1,7 @@
 package vault.model
 
 import backend.events.Subscriber.Lsn
-import cats.{Applicative, Functor, Monad, MonadError}
+import cats.{Applicative, Foldable, Functor, Monad, MonadError}
 import cats.implicits._
 import backend.gossip.GossipDaemon
 import backend.storage.{Database, KVStore}
@@ -22,7 +22,7 @@ trait Accounts[F[_]] {
   def transfer(to: User, amount: Money): F[Unit]
   def balance(of: User): F[Money]
   def transactions(of: User): F[List[AccountsEvent]]
-  def withAccounts(us: User*): Accounts[F]
+  def withAccounts(u: User, us: User*): F[Accounts[F]]
 }
 
 object Accounts {
@@ -55,40 +55,52 @@ object Accounts {
           .through(decodeAndCausalOrder(this))
           .filter { // Keep transactions related to the user
             case Withdraw(from, _, _, _) => from == of
-            case Deposit(_, to, _, _)    => to == of
+            case Deposit(_, to, _, _) => to == of
           }
           .compile
           .toList
       }
 
-      def withAccounts(us: User*): Accounts[F] = this
+      def withAccounts(u: User, us: User*): F[Accounts[F]] = ???
     }
 
   def mock[F[_]](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
       implicit F: Monad[F]): Accounts[F] = new Accounts[F] {
     def transfer(to: User, amount: Money): F[Unit] =
-      (for {
-        from <- OptionT.liftF(daemon.getNodeId)
-        fromBalance <- OptionT(kvs.get(from))
-        _ <- OptionT.liftF(kvs.put(from, tag[MoneyTag][Double](fromBalance - amount)))
-        toBalance <- OptionT(kvs.get(to))
-        _ <- OptionT.liftF(kvs.put(to, tag[MoneyTag][Double](toBalance + amount)))
-      } yield ()).getOrElse(())
+      for {
+        from <- daemon.getNodeId
+
+        fromBalance <- kvs
+          .get(from)
+          .map(_.getOrElse(throw new IllegalArgumentException(s"No account for $from")))
+
+        _ <- kvs.put(from, tag[MoneyTag][Double](fromBalance - amount))
+
+        toBalance <- kvs
+          .get(to)
+          .map(_.getOrElse(throw new IllegalArgumentException(s"No account for $from")))
+
+        _ <- kvs.put(to, tag[MoneyTag][Double](toBalance + amount))
+      } yield ()
 
     def balance(of: User): F[Money] =
-      kvs.get(of).map(_.getOrElse(initBalance(of, tag[MoneyTag][Double](100))))
-
-    // Helper method which initializes an account with a balance of 100.0
-    def initBalance(u: User, a: Money): Money = {
-      kvs.put(u, a)
-      a
-    }
+      for {
+        maybeMoney <- kvs.get(of)
+        money <- maybeMoney.map(F.pure).getOrElse {
+          initialBalance(of) match {
+            case (u, m) => kvs.put(u, m) >> F.pure(m)
+          }
+        }
+      } yield money
 
     def transactions(of: User): F[List[AccountsEvent]] = F.pure(List.empty)
 
-    def withAccounts(us: User*): Accounts[F] = {
-      us.foreach(kvs.put(_, tag[MoneyTag][Double](100.0)))
-      this
+    def withAccounts(u: User, us: User*): F[Accounts[F]] =
+      kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> F.pure(this)
+
+    private def initialBalance(u: User): (User, Money) = {
+      val m = tag[MoneyTag][Double](100)
+      (u, m)
     }
   }
 }
