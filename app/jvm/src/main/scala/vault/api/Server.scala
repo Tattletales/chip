@@ -209,9 +209,8 @@ object Server {
             val amount = tag[MoneyTag][Double](
               data.values.get(amountFieldId).map(_.foldRight("")(_ + _)).getOrElse("0.0").toDouble)
 
-            accounts.transfer(to, amount)
-
             for {
+              _ <- accounts.transfer(to, amount)
               response <- okResp(transferPage(to, amount))
             } yield response
           }
