@@ -2,7 +2,7 @@ package backend.gossip
 
 import cats.effect.Sync
 import cats.implicits._
-import cats.{Applicative, Monad}
+import cats.{Applicative, ApplicativeError, Monad, MonadError}
 import backend.events.Subscriber._
 import backend.events.{EventTyper, Subscriber}
 import backend.implicits._
@@ -28,6 +28,13 @@ trait GossipDaemon[F[_]] {
   //def replayLog(lsn: Lsn): F[Unit]
 }
 
+sealed trait GossipDeamonError extends Throwable
+case object NodeIdError extends GossipDeamonError {
+  override def toString: String = "Could not retrieve the node id."
+}
+case object SendError extends GossipDeamonError
+case object LogRetrievalError extends GossipDeamonError
+
 object GossipDaemon extends GossipDaemonInstances {
   def apply[F[_]](implicit D: GossipDaemon[F]): GossipDaemon[F] = D
 }
@@ -36,22 +43,30 @@ sealed abstract class GossipDaemonInstances {
   implicit def localhost[
       F[_]: EntityDecoder[?[_], List[Event]]: EntityDecoder[?[_], NodeId]: EntityDecoder[
         ?[_],
-        String]: EntityEncoder[?[_], Json]](httpClient: HttpClient[F],
-                                            subscriber: Subscriber[F]): GossipDaemon[F] =
+        String]: EntityEncoder[?[_], Json]](httpClient: HttpClient[F], subscriber: Subscriber[F])(
+      F: MonadError[F, Throwable]): GossipDaemon[F] =
     new GossipDaemon[F] {
+      import F._
+
       private val root = "localhost:59234"
 
-      def getNodeId: F[NodeId] = httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))
+      def getNodeId: F[NodeId] =
+        adaptError(httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))) {
+          case _ => NodeIdError
+        }
 
       def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit] =
-        httpClient.getAndIgnore[String](
-          tag[UriTag][String](s"$root/gossip?t=${M.eventType.toString}&d=${m.asJson.noSpaces}"))
+        adaptError(httpClient.getAndIgnore[String](
+          tag[UriTag][String](s"$root/gossip?t=${M.eventType.toString}&d=${m.asJson.noSpaces}"))) {
+          case _ => SendError
+        }
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
 
-      def getLog: F[List[Event]] = httpClient.get[List[Event]](tag[UriTag][String](s"$root/log"))
-
-      //def replayLog(lsn: Lsn): F[Unit] = ???
+      def getLog: F[List[Event]] =
+        adaptError(httpClient.get[List[Event]](tag[UriTag][String](s"$root/log"))) {
+          case _ => LogRetrievalError
+        }
     }
 
   implicit def mock[F[_]: Monad: Sync](eventQueue: Queue[F, Event]): GossipDaemon[F] =

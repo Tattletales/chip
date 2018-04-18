@@ -59,7 +59,8 @@ sealed abstract class HttpClientInstances {
       def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit] =
         genPostReq(uri, body).flatMap(client.fetch[Unit](_)(_ => F.pure(())))
 
-      private def genPostReq[T](uri: Uri, body: T)(implicit T: EntityEncoder[F, T]): F[Request[F]] =
+      private def genPostReq[T](uri: Uri, body: T)(
+          implicit T: EntityEncoder[F, T]): F[Request[F]] =
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
             Request(method = Method.POST, uri = uri).withBody(body)(F, T)
