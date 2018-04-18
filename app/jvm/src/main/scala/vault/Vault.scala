@@ -37,7 +37,7 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
 
         accounts <- Stream.eval(
           Accounts
-            .mock[F](daemon, kvs)
+            .simple[F](daemon, kvs)
             .withAccounts(tag[NodeIdTag][String]("alice"), tag[NodeIdTag][String]("bob")))
 
         handler = daemon.subscribe.through(handleAccountsEvents(daemon, kvs, accounts))
