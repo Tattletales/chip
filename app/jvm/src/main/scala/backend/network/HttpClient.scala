@@ -14,13 +14,13 @@ trait HttpClient[F[_]] {
 
   def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
       implicit T: EntityEncoder[F, T]
-  ): F[Option[Response]]
+  ): F[Response]
 
   def unsafePost[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
       implicit T: EntityEncoder[F, T]
   ): F[Response]
 
-  def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Option[Unit]]
+  def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit]
 
   def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit]
 }
@@ -45,27 +45,30 @@ sealed abstract class HttpClientInstances {
 
       def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
           implicit w: EntityEncoder[F, T]
-      ): F[Option[Response]] =
-        genPostReq(uri, body).toOption.traverse[F, Response]((req: F[Request[F]]) =>
-          client.expect[Response](req))
+      ): F[Response] =
+        client.expect[Response](genPostReq(uri, body))
 
       def unsafePost[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
           implicit w: EntityEncoder[F, T]
       ): F[Response] =
-        F.fromEither(genPostReq(uri, body)).flatMap(client.expect[Response])
+        genPostReq(uri, body).flatMap(client.expect[Response])
 
-      def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Option[Unit]] =
-        genPostReq(uri, body).toOption.traverse[F, Unit](req =>
-          client.fetch[Unit](req)(_ => F.pure(())))
+      def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit] =
+        client.fetch[Unit](genPostReq(uri, body))(_ => F.pure(()))
 
       def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit] =
-        F.fromEither(genPostReq(uri, body)).flatMap(client.fetch[Unit](_)(_ => F.pure(())))
+        genPostReq(uri, body).flatMap(client.fetch[Unit](_)(_ => F.pure(())))
 
-      private def genPostReq[T: EntityEncoder[F, ?]](
-          uri: Uri,
-          body: T): Either[ParseFailure, F[Request[F]]] =
-        Http4sUri.fromString(uri).map {
-          Request().withMethod(Method.POST).withUri(_).withBody(body)
-        }
+      private def genPostReq[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Request[F]] =
+        F.fromEither(Http4sUri.fromString(uri))
+          .flatMap { uri =>
+            Request().withMethod(Method.POST).withUri(uri).withBody(body)
+          }
+          .adaptError {
+            case ParseFailure(sanitized, _) => MalformedUriError(uri, sanitized)
+          }
     }
 }
+
+sealed trait HttpClientError extends Throwable
+case class MalformedUriError(uri: String, m: String) extends HttpClientError
