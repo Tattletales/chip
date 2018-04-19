@@ -10,7 +10,7 @@ import backend.storage.Database.Column
 trait Database[F[_]] {
   def query[R: Composite](q: Fragment): F[List[R]]
   def insert(q: Fragment, qs: Fragment*): F[Unit]
-  def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[Option[R]]
+  def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[R]
   def exists(q: Fragment): F[Boolean]
 }
 
@@ -22,7 +22,7 @@ object Database extends DatabaseInstances {
 }
 
 sealed abstract class DatabaseInstances {
-  implicit def doobieDatabase[F[_]: Monad](xa: Transactor[F]): Database[F] =
+  implicit def doobieDatabase[F[_]: MonadError[?[_], Throwable]](xa: Transactor[F]): Database[F] =
     new Database[F] {
       def query[R: Composite](q: Fragment): F[List[R]] =
         q.query[R].to[List].transact(xa)
@@ -34,15 +34,10 @@ sealed abstract class DatabaseInstances {
           .transact(xa)
           .map(_ => ())
 
-      def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[Option[R]] =
+      def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[R] =
         q.update
           .withUniqueGeneratedKeys[R](cols: _*)
-          .attemptSomeSqlState {
-            case doobie.postgres.sqlstate.class23.UNIQUE_VIOLATION =>
-              "Coucou"
-          }
           .transact(xa)
-          .map(a => a.toOption)
 
       def exists(q: Fragment): F[Boolean] =
         q.query[Int].unique.map(_ > 0).transact(xa)
