@@ -7,7 +7,7 @@ import doobie.implicits._
 import backend.events.Subscriber.{EventType, EventTypeTag}
 import chip.events.Replicable
 import chip.model.User.{UserId, Username}
-import chip.model.UsersActions.{AddUser, UsersAction}
+import chip.model.UsersEvents.{AddUser, UsersEvent}
 import backend.gossip.GossipDaemon
 import org.http4s.EntityDecoder
 import backend.storage.Database
@@ -17,18 +17,24 @@ import backend.events.EventTyper
 import io.circe.generic.auto._
 import backend.implicits._
 
+/**
+  * Users DSL
+  */
 trait Users[F[_]] {
   def addUser(name: Username): F[User]
   def searchUser(name: Username): F[List[User]]
   def getUser(id: UserId): F[Option[User]]
 }
 
-object Users extends UsersInstances {
-  def apply[F[_]](implicit U: Users[F]): Users[F] = U
-}
+object Users {
+  /* ------ Interpreters ------ */
 
-sealed abstract class UsersInstances {
-  implicit def replicated[F[_]: Monad: EntityDecoder[?[_], String]](
+  /**
+    * Interprets to [[Database]] and [[GossipDaemon]] DSLs.
+    *
+    * Replicates the events.
+    */
+  def replicated[F[_]: Monad: EntityDecoder[?[_], String]](
       db: Database[F],
       daemon: GossipDaemon[F]
   ): Users[F] = new Users[F] {
@@ -36,7 +42,7 @@ sealed abstract class UsersInstances {
       for {
         id <- daemon.getNodeId
         user = User(id, name)
-        _ <- daemon.send[UsersAction](AddUser(user))
+        _ <- daemon.send[UsersEvent](AddUser(user))
       } yield user
 
     def searchUser(name: Username): F[List[User]] =
@@ -54,18 +60,18 @@ sealed abstract class UsersInstances {
   }
 }
 
-object UsersActions {
-  sealed trait UsersAction
-  case class AddUser(user: User) extends UsersAction
+object UsersEvents {
+  sealed trait UsersEvent
+  case class AddUser(user: User) extends UsersEvent
 
-  object UsersAction {
-    implicit val namedUsersAction: EventTyper[UsersAction] = new EventTyper[UsersAction] {
+  object UsersEvent {
+    implicit val namedUsersEvent: EventTyper[UsersEvent] = new EventTyper[UsersEvent] {
       val eventType: EventType = tag[EventTypeTag][String]("Users")
     }
 
-    implicit val replicableUsersAction: Replicable[UsersAction] =
-      new Replicable[UsersAction] {
-        def replicate[F[_]: Effect](db: Database[F]): UsersAction => F[Unit] = {
+    implicit val replicableUsersEvent: Replicable[UsersEvent] =
+      new Replicable[UsersEvent] {
+        def replicate[F[_]: Effect](db: Database[F]): UsersEvent => F[Unit] = {
           case AddUser(user) =>
             db.insert(sql"""
            INSERT INTO users (id, name)

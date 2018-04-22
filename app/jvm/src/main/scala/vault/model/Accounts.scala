@@ -4,10 +4,11 @@ import backend.events.Subscriber.Lsn
 import cats.{Applicative, Foldable, Functor, Monad, MonadError}
 import cats.implicits._
 import backend.gossip.GossipDaemon
-import backend.storage.{Database, KVStore, KeyNotFound}
+import backend.storage.{Database, KVStore}
 import doobie.implicits._
 import vault.implicits._
 import backend.implicits._
+import backend.storage.KVStore.KeyNotFound
 import cats.data.OptionT
 import cats.effect.Effect
 import io.circe.generic.auto._
@@ -18,14 +19,39 @@ import vault.events.AccountsEvent.decodeAndCausalOrder
 import vault.events._
 import vault.model.Account._
 
+/**
+  * Accounts DSL
+  */
 trait Accounts[F[_]] {
-  def transfer(to: User, amount: Money): F[Unit]
-  def balance(of: User): F[Money]
-  def transactions(of: User): F[List[AccountsEvent]]
+
+  /**
+    * Add accounts of the given users.
+    * Use this to create an [[Accounts]] with users.
+    */
   def withAccounts(u: User, us: User*): F[Accounts[F]]
+
+  /**
+    * Transfer money from the owner of the current node to another node `to`.
+    */
+  def transfer(to: User, amount: Money): F[Unit]
+
+  /**
+    * Balance of the given user.
+    */
+  def balance(of: User): F[Money]
+
+  /**
+    * All transactions of the given user.
+    */
+  def transactions(of: User): F[List[AccountsEvent]]
 }
 
 object Accounts {
+  /* --- Interpreters ------ */
+
+  /**
+    * Interpreter to [[GossipDaemon]] and [[KVStore]] DSLs.
+    */
   def simple[F[_]: Effect](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
       implicit F: Monad[F]): Accounts[F] =
     new Accounts[F] {
@@ -39,13 +65,15 @@ object Accounts {
         } yield ()
 
       def balance(of: User): F[Money] =
-        kvs.get(of).handleErrorWith {
-          case KeyNotFound(_) => initBalance(of, tag[MoneyTag][Double](100))
+        kvs.get(of).adaptError {
+          case KeyNotFound(_) => AccountNotFound(of)
         }
 
-      // Helper method which initializes an account with a balance of 100.0
-      def initBalance(u: User, a: Money): F[Money] =
-        kvs.put(u, a) >> F.pure(a)
+      ///**
+      //  * Helper method which initializes an account with a given balance
+      //  */
+      //private def initBalance(user: User, amount: Money): F[Money] =
+      //  kvs.put(user, amount) >> F.pure(amount)
 
       // TODO: converting from List to Stream, and back to a List is a bit silly.
       def transactions(of: User): F[List[AccountsEvent]] = {
@@ -79,7 +107,7 @@ object Accounts {
         fromBalance <- kvs
           .get(from)
           .adaptError {
-            case KeyNotFound(_) => AccountNotFoundError(from)
+            case KeyNotFound(_) => AccountNotFound(from)
           }
 
         _ <- kvs.put(from, tag[MoneyTag][Double](fromBalance - amount))
@@ -87,18 +115,15 @@ object Accounts {
         toBalance <- kvs
           .get(to)
           .adaptError {
-            case KeyNotFound(_) => AccountNotFoundError(to)
+            case KeyNotFound(_) => AccountNotFound(to)
           }
 
         _ <- kvs.put(to, tag[MoneyTag][Double](toBalance + amount))
       } yield ()
 
     def balance(of: User): F[Money] =
-      kvs.get(of).handleErrorWith {
-        case KeyNotFound(_) =>
-          initialBalance(of) match {
-            case (u, m) => kvs.put(u, m) >> F.pure(m)
-          }
+      kvs.get(of).adaptError {
+        case KeyNotFound(_) => AccountNotFound(of)
       }
 
     def transactions(of: User): F[List[AccountsEvent]] = F.pure(List.empty)
@@ -110,5 +135,11 @@ object Accounts {
       val m = tag[MoneyTag][Double](100)
       (u, m)
     }
+  }
+
+  /* ------ Errors ------ */
+  sealed trait AccountsError extends Throwable
+  case class AccountNotFound(user: User) extends AccountsError {
+    override def toString: String = s"No account for $user."
   }
 }

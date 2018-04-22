@@ -4,7 +4,7 @@ import cats.{Functor, Monad, MonadError, Traverse}
 import cats.effect.Effect
 import cats.implicits._
 import backend.events.EventTyper
-import backend.events.Subscriber.{Event, EventType, EventTypeTag, Lsn}
+import backend.events.Subscriber._
 import backend.gossip.GossipDaemon
 import backend.gossip.model.Node.NodeId
 import shapeless.tag
@@ -14,12 +14,14 @@ import io.circe.generic.auto._
 import io.circe.parser.{decode => circeDecode}
 import vault.implicits._
 import backend.implicits._
-import backend.storage.{Database, KVStore, KeyNotFound}
+import backend.storage.KVStore
+import backend.storage.KVStore.KeyNotFound
 import cats.data.OptionT
 import vault.model.Account.{Money, MoneyTag, User}
 import vault.model._
 import doobie.implicits._
 import utils.StreamUtils
+import vault.model.Accounts.AccountNotFound
 
 /**
   * A transaction is split into two events Withdraw and Deposit so the events only relate
@@ -68,9 +70,10 @@ object AccountsEvent {
         convertedEvent <- event match {
           case d @ Deposit(from, _, _, _) if e.lsn.nodeId == from =>
             Right[VaultError, AccountsEvent](d)
-          case Withdraw(from, to, amount, lsn) if e.lsn.nodeId == from =>
-            Right[VaultError, AccountsEvent](Withdraw(from, to, amount, Some(e.lsn)))
-          case e => Left[VaultError, AccountsEvent](SenderError(s"Wrong sender for event: $e"))
+          case Withdraw(from, to, amount, _) if e.lsn.nodeId == from =>
+            Right[AccountsEventError, AccountsEvent](Withdraw(from, to, amount, Some(e.lsn)))
+          case e =>
+            Left[AccountsEventError, AccountsEvent](SenderError(s"Wrong sender for event: $e"))
         }
       } yield convertedEvent
 
@@ -171,15 +174,24 @@ object AccountsEvent {
         // Transfer the money. Succeeds only if both succeeded.
         for {
           currentFrom <- kvs.get(from).adaptError {
-            case KeyNotFound(_) => AccountNotFoundError(from)
+            case KeyNotFound(_) => AccountNotFound(from)
           }
 
           currentTo <- kvs.get(to).adaptError {
-            case KeyNotFound(_) => AccountNotFoundError(to)
+            case KeyNotFound(_) => AccountNotFound(to)
           }
 
           _ <- kvs.put_*((from, tag[MoneyTag][Double](currentFrom - amount)),
                          (to, tag[MoneyTag][Double](currentTo + amount)))
         } yield ()
     }
+
+  /* ------ Errors ------ */
+  sealed trait AccountsEventError extends Throwable
+
+  case class PayloadDecodingError(payload: Payload, m: String) extends AccountsEventError {
+    override def toString: String = s"Failed decoding the payload $payload.\n$m"
+  }
+
+  case class SenderError(m: String) extends AccountsEventError
 }

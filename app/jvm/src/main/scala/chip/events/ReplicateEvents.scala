@@ -10,11 +10,17 @@ import shapeless.{::, HList, HNil}
 import simulacrum._
 import backend.storage.Database
 
-// https://youtu.be/Nm4OIhjjA2o
+/**
+  * DSL for the replication of events to a [[Database]]
+  */
 trait ReplicateEvents[E] {
   def replicate[F[_]](db: Database[F])(event: Event)(implicit F: Effect[F]): F[Unit]
 }
 
+/**
+  * Compile time inductive construction of a [[ReplicateEvents]] instance.
+  * Source: https://youtu.be/Nm4OIhjjA2o
+  */
 object ReplicateEvents {
   implicit val baseCase: ReplicateEvents[HNil] = new ReplicateEvents[HNil] {
     def replicate[F[_]](db: Database[F])(event: Event)(implicit F: Effect[F]): F[Unit] = F.unit
@@ -34,6 +40,10 @@ object ReplicateEvents {
     }
 }
 
+/**
+  * Typeclass providing the actions to run
+  * in order to replicate each event `E`.
+  */
 @typeclass
 trait Replicable[E] {
   def replicate[F[_]: Effect](db: Database[F]): E => F[Unit]

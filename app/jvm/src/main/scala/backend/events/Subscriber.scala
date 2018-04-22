@@ -23,29 +23,20 @@ import shapeless.tag
 
 import scala.concurrent.ExecutionContext
 
+/**
+  * Subscriber DSL
+  */
 trait Subscriber[F[_]] {
   def subscribe(uri: String): Stream[F, Event]
 }
 
-object Subscriber extends SubscriberInstances {
-  sealed trait EventIdTag
-  type EventId = Int @@ EventIdTag
+object Subscriber {
+  /* ------ Interpreters ------ */
 
-  sealed trait EventTypeTag
-  type EventType = String @@ EventTypeTag
-
-  sealed trait PayloadTag
-  type Payload = String @@ PayloadTag
-
-  case class Lsn(nodeId: NodeId, eventId: EventId)
-
-  case class Event(lsn: Lsn, eventType: EventType, payload: Payload)
-
-  def apply[F[_]](implicit S: Subscriber[F]): Subscriber[F] = S
-}
-
-sealed abstract class SubscriberInstances {
-  implicit def serverSentEvent[F[_]: Effect]: Subscriber[F] =
+  /**
+    * Interpreter to an `AkkaHTTP` server sent system
+    */
+  def serverSentEvent[F[_]: Effect]: Subscriber[F] =
     new Subscriber[F] {
       implicit val system: ActorSystem = ActorSystem()
       implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -81,4 +72,18 @@ sealed abstract class SubscriberInstances {
           } yield fs2Stream).onComplete(t => cb(t.toEither))
         })
     }
+
+  /* ------ Types ------ */
+  sealed trait EventIdTag
+  type EventId = Int @@ EventIdTag
+
+  sealed trait EventTypeTag
+  type EventType = String @@ EventTypeTag
+
+  sealed trait PayloadTag
+  type Payload = String @@ PayloadTag
+
+  case class Lsn(nodeId: NodeId, eventId: EventId)
+
+  case class Event(lsn: Lsn, eventType: EventType, payload: Payload)
 }

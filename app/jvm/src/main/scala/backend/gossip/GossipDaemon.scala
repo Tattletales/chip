@@ -5,10 +5,11 @@ import cats.implicits._
 import cats.{Applicative, ApplicativeError, Monad, MonadError}
 import backend.events.Subscriber._
 import backend.events.{EventTyper, Subscriber}
+import backend.gossip.GossipDaemon._
+import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import backend.implicits._
 import fs2.async.mutable.Queue
 import fs2.Stream
-import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -18,70 +19,95 @@ import backend.network.HttpClient.UriTag
 import org.http4s.{EntityDecoder, EntityEncoder}
 import utils.StreamUtils.log
 import shapeless.tag
+import shapeless.tag.@@
 
+/**
+  * Gossip deamon DSL
+  */
 trait GossipDaemon[F[_]] {
+
+  /**
+    * The unique id of the current node
+    */
   def getNodeId: F[NodeId]
-  def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit]
+
+  /**
+    * Send an event `E` to all the clients of the daemon.
+    */
+  def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit]
+
+  /**
+    * Subscribe to the events [[Event]] sent by the daemon.
+    */
   def subscribe
     : Stream[F, Event] // TODO should be val? no need to create new stream for every call
+
+  /**
+    * Get all the events from the daemon's log.
+    */
   def getLog: F[List[Event]]
-  //def replayLog(lsn: Lsn): F[Unit]
 }
 
-sealed trait GossipDeamonError extends Throwable
-case object NodeIdError extends GossipDeamonError {
-  override def toString: String = "Could not retrieve the node id."
-}
-case object SendError extends GossipDeamonError
-case object LogRetrievalError extends GossipDeamonError
+object GossipDaemon {
+  /* ------ Interpreters ------*/
 
-object GossipDaemon extends GossipDaemonInstances {
-  def apply[F[_]](implicit D: GossipDaemon[F]): GossipDaemon[F] = D
-}
-
-sealed abstract class GossipDaemonInstances {
-  implicit def localhost[
+  /**
+    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
+    */
+  def relativeHttpClient[
       F[_]: EntityDecoder[?[_], List[Event]]: EntityDecoder[?[_], NodeId]: EntityDecoder[
         ?[_],
         String]: EntityEncoder[?[_], Json]](httpClient: HttpClient[F], subscriber: Subscriber[F])(
       F: MonadError[F, Throwable]): GossipDaemon[F] =
     new GossipDaemon[F] {
-      import F._
-
-      private val root = "localhost:59234"
-
       def getNodeId: F[NodeId] =
-        adaptError(httpClient.get[NodeId](tag[UriTag][String](s"$root/unique"))) {
+        F.adaptError(httpClient.get[NodeId](tag[UriTag][String]("/unique"))) {
           case _ => NodeIdError
         }
 
-      def send[M: Encoder](m: M)(implicit M: EventTyper[M]): F[Unit] =
-        adaptError(httpClient.getAndIgnore[String](
-          tag[UriTag][String](s"$root/gossip?t=${M.eventType.toString}&d=${m.asJson.noSpaces}"))) {
+      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
+        F.adaptError(
+          httpClient.getAndIgnore[String](
+            tag[UriTag][String](s"/gossip?t=${E.eventType.toString}&d=${e.asJson.noSpaces}"))) {
           case _ => SendError
         }
 
-      def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
+      def subscribe: Stream[F, Event] = subscriber.subscribe(s"/events")
 
       def getLog: F[List[Event]] =
-        adaptError(httpClient.get[List[Event]](tag[UriTag][String](s"$root/log"))) {
+        F.adaptError(httpClient.get[List[Event]](tag[UriTag][String](s"/log"))) {
           case _ => LogRetrievalError
         }
     }
 
-  implicit def mock[F[_]: Monad: Sync](eventQueue: Queue[F, Event]): GossipDaemon[F] =
+  /**
+    * Interprets to `FS2` queues.
+    *
+    * Mock version of the [[GossipDaemon]].
+    *
+    * Will always yield the same node id and simply echoes back the events.
+    * [[GossipDaemon.getLog]] will never return a result.
+    */
+  def mock[F[_]](eventQueue: Queue[F, Event])(implicit F: Sync[F]): GossipDaemon[F] =
     new GossipDaemon[F] {
+      def getNodeId: F[NodeId] = F.pure(tag[NodeIdTag][String]("FFFF"))
 
-      def send[Message: Encoder](m: Message)(implicit M: EventTyper[Message]): F[Unit] =
+      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
         eventQueue.enqueue1(
           Event(Lsn(tag[NodeIdTag][String]("FFFF"), tag[EventIdTag][Int](123)),
-                M.eventType,
-                tag[PayloadTag][String](m.asJson.noSpaces)))
-
-      def getNodeId: F[NodeId] = implicitly[Applicative[F]].pure(tag[NodeIdTag][String]("FFFF"))
+                E.eventType,
+                tag[PayloadTag][String](e.asJson.noSpaces)))
 
       def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
 
-      def getLog: F[List[Event]] = implicitly[Applicative[F]].pure(List.empty)
+      def getLog: F[List[Event]] = F.pure(List.empty)
     }
+
+  /* ------ Errors ------ */
+  sealed trait GossipDeamonError extends Throwable
+  case object NodeIdError extends GossipDeamonError {
+    override def toString: String = "Could not retrieve the node id."
+  }
+  case object SendError extends GossipDeamonError
+  case object LogRetrievalError extends GossipDeamonError
 }

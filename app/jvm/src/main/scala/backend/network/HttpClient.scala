@@ -1,12 +1,16 @@
 package backend.network
 
+import backend.network.HttpClient.Uri
 import cats.MonadError
 import cats.implicits._
-import backend.network.HttpClient.Uri
 import org.http4s.client.Client
 import org.http4s.{Uri => Http4sUri, _}
+import shapeless.tag
 import shapeless.tag.@@
 
+/**
+  * HTTP client DSL
+  */
 trait HttpClient[F[_]] {
   def get[Response: EntityDecoder[F, ?]](uri: Uri): F[Response]
 
@@ -16,60 +20,61 @@ trait HttpClient[F[_]] {
       implicit T: EntityEncoder[F, T]
   ): F[Response]
 
-  def unsafePost[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
-      implicit T: EntityEncoder[F, T]
-  ): F[Response]
-
   def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit]
-
-  def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit]
 }
 
-object HttpClient extends HttpClientInstances {
-  sealed trait UriTag
-  type Uri = String @@ UriTag
+object HttpClient {
 
-  def apply[F[_]](implicit H: HttpClient[F]): HttpClient[F] =
-    H
-}
+  /* ------ Interpreters ------ */
 
-sealed abstract class HttpClientInstances {
-  implicit def http4sClient[F[_]](client: Client[F])(
+  /**
+    * Interpreter to `Http4s`.
+    *
+    * Warning: takes relative uri's.
+    *
+    * @param root the root
+    */
+  def http4sClient[F[_]](root: Root)(client: Client[F])(
       implicit F: MonadError[F, Throwable]): HttpClient[F] =
     new HttpClient[F] {
-      def get[Response: EntityDecoder[F, ?]](uri: Uri): F[Response] =
-        client.expect[Response](uri)
+      def get[Response: EntityDecoder[F, ?]](relUri: Uri): F[Response] =
+        client.expect[Response](root ++ relUri)
 
-      def getAndIgnore[Response: EntityDecoder[F, ?]](uri: Uri): F[Unit] =
-        client.expect[Response](uri).map(_ => ())
+      def getAndIgnore[Response: EntityDecoder[F, ?]](relUri: Uri): F[Unit] =
+        get(tag[UriTag][String](root ++ relUri)).map(_ => ())
 
-      def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
-          implicit w: EntityEncoder[F, T]
+      def post[T, Response: EntityDecoder[F, ?]](relUri: Uri, body: T)(
+          implicit T: EntityEncoder[F, T]
       ): F[Response] =
-        client.expect[Response](genPostReq(uri, body))
+        client.expect[Response](genPostReq(tag[UriTag][String](root ++ relUri), body))
 
-      def unsafePost[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
-          implicit w: EntityEncoder[F, T]
-      ): F[Response] =
-        genPostReq(uri, body).flatMap(client.expect[Response])
+      def postAndIgnore[T: EntityEncoder[F, ?]](relUri: Uri, body: T): F[Unit] =
+        client.fetch[Unit](genPostReq(tag[UriTag][String](root ++ relUri), body))(_ => F.pure(()))
 
-      def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit] =
-        client.fetch[Unit](genPostReq(uri, body))(_ => F.pure(()))
-
-      def unsafePostAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit] =
-        genPostReq(uri, body).flatMap(client.fetch[Unit](_)(_ => F.pure(())))
-
-      private def genPostReq[T](uri: Uri, body: T)(
-          implicit T: EntityEncoder[F, T]): F[Request[F]] =
+      private def genPostReq[T](relUri: Uri, body: T)(
+          implicit T: EntityEncoder[F, T]): F[Request[F]] = {
+        val uri = tag[UriTag][String](root ++ relUri)
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
             Request(method = Method.POST, uri = uri).withBody(body)(F, T)
           }
           .adaptError {
-            case ParseFailure(sanitized, _) => MalformedUriError(uri, sanitized)
+            case ParseFailure(sanitized, _) =>
+              MalformedUriError(uri, sanitized)
           }
+      }
     }
-}
 
-sealed trait HttpClientError extends Throwable
-case class MalformedUriError(uri: String, m: String) extends HttpClientError
+  /* ------ Types ------ */
+
+  sealed trait UriTag
+  type Uri = String @@ UriTag
+
+  sealed trait RootTag
+  type Root = String @@ RootTag
+
+  /* ------ Errors ------ */
+
+  sealed trait HttpClientError extends Throwable
+  case class MalformedUriError(uri: Uri, m: String) extends HttpClientError
+}

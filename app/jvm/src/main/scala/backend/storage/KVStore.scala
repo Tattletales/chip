@@ -2,13 +2,18 @@ package backend.storage
 
 import cats.{Applicative, ApplicativeError, Functor, MonadError}
 import cats.data.State
-import cats.effect.Effect
+import cats.effect.{Effect, Sync}
 import cats.implicits._
 import doobie.implicits._
 import doobie.util.composite.Composite
 import doobie.util.fragment.Fragment
 import doobie.util.meta.Meta
 
+import scala.collection.mutable
+
+/**
+  * Key-value store DSL
+  */
 trait KVStore[F[_], K, V] {
   def get(k: K): F[V]
   def put(k: K, v: V): F[Unit]
@@ -16,21 +21,13 @@ trait KVStore[F[_], K, V] {
   def remove(k: K): F[Unit]
 }
 
-case class KeyNotFound[K](k: K) extends Throwable
-
 object KVStore {
-  //def stateKVS[K, V]: KVStore[State[Map[K, V], ?], K, V] =
-  //  new KVStore[State[Map[K, V], ?], K, V] {
-  //    def get(k: K): State[Map[K, V], Option[V]] =
-  //      ApplicativeError[State[Map[K, V], ?], Throwable].fromOption(State.inspect(_.get(k)), )
-  //    def put(k: K, v: V): State[Map[K, V], Unit] = State.modify(_ + (k -> v))
-  //    def put_*(kv: (K, V), kvs: (K, V)*): State[Map[K, V], Unit] =
-  //      kvs.foldLeft(put(kv._1, kv._2)) {
-  //        case (state, (k, v)) => state.modify(_ + (k -> v))
-  //      }
-  //    def remove(k: K): State[Map[K, V], Unit] = State.modify(_ - k)
-  //  }
 
+  /* ------ Interpreters ------ */
+
+  /**
+    * Interpreter to a [[Database]]
+    */
   def dbKVS[F[_]: Functor, K: Meta, V: Composite: Meta](db: Database[F])(
       implicit F: MonadError[F, Throwable]): KVStore[F, K, V] =
     new KVStore[F, K, V] {
@@ -54,8 +51,15 @@ object KVStore {
       """.stripMargin
     }
 
-  def mapKVS[F[_], K, V](implicit F: Effect[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
-    val map = scala.collection.mutable.HashMap.empty[K, V]
+  /**
+    * Interpreter to a [[mutable.HashMap]].
+    *
+    * All the side-effecting calls to the mutable map
+    * are suspended/delayed in `F` so they do not escape
+    * `F` and can be sequenced appropriately.
+    */
+  def mapKVS[F[_], K, V](implicit F: Sync[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
+    val map = mutable.HashMap.empty[K, V]
 
     def get(k: K): F[V] =
       F.suspend(F.fromOption(map.get(k), KeyNotFound(k)))
@@ -72,4 +76,21 @@ object KVStore {
 
     def remove(k: K): F[Unit] = F.delay(map.remove(k))
   }
+
+  //def stateKVS[K, V]: KVStore[State[Map[K, V], ?], K, V] =
+  //  new KVStore[State[Map[K, V], ?], K, V] {
+  //    def get(k: K): State[Map[K, V], Option[V]] =
+  //      ApplicativeError[State[Map[K, V], ?], Throwable].fromOption(State.inspect(_.get(k)), )
+  //    def put(k: K, v: V): State[Map[K, V], Unit] = State.modify(_ + (k -> v))
+  //    def put_*(kv: (K, V), kvs: (K, V)*): State[Map[K, V], Unit] =
+  //      kvs.foldLeft(put(kv._1, kv._2)) {
+  //        case (state, (k, v)) => state.modify(_ + (k -> v))
+  //      }
+  //    def remove(k: K): State[Map[K, V], Unit] = State.modify(_ - k)
+  //  }
+
+  /* ------ Errors ------ */
+
+  sealed trait KVStoreError extends Throwable
+  case class KeyNotFound[K](k: K) extends KVStoreError
 }

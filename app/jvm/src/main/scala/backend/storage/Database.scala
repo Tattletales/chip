@@ -1,28 +1,47 @@
 package backend.storage
 
+import backend.storage.Database.Column
 import cats._
 import cats.implicits._
 import doobie._
 import doobie.implicits._
 import shapeless.tag.@@
-import backend.storage.Database.Column
 
+/**
+  * Database DSL
+  */
 trait Database[F[_]] {
+
+  /**
+    * Query the database and return the results `R`.
+    */
   def query[R: Composite](q: Fragment): F[List[R]]
+
+  /**
+    * Insert the described rows.
+    */
   def insert(q: Fragment, qs: Fragment*): F[Unit]
+
+  /**
+    * Insert the described row and yield a unique
+    * generated key based on the provided columns.
+    */
   def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[R]
+
+  /**
+    * Returns true if the given querie's result is non-empty.
+    */
   def exists(q: Fragment): F[Boolean]
 }
 
-object Database extends DatabaseInstances {
-  sealed trait ColumnTag
-  type Column = String @@ ColumnTag
+object Database {
 
-  def apply[F[_]](implicit D: Database[F]): Database[F] = D
-}
+  /* ------ Interpreters ------ */
 
-sealed abstract class DatabaseInstances {
-  implicit def doobieDatabase[F[_]: MonadError[?[_], Throwable]](xa: Transactor[F]): Database[F] =
+  /**
+    * Interpreter to `Doobie`
+    */
+  def doobieDatabase[F[_]: MonadError[?[_], Throwable]](xa: Transactor[F]): Database[F] =
     new Database[F] {
       def query[R: Composite](q: Fragment): F[List[R]] =
         q.query[R].to[List].transact(xa)
@@ -32,7 +51,7 @@ sealed abstract class DatabaseInstances {
             _ *> _.update.run
           }
           .transact(xa)
-          .map(_ => ())
+          .map(_ => ()) // Ignore output
 
       def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[R] =
         q.update
@@ -42,4 +61,8 @@ sealed abstract class DatabaseInstances {
       def exists(q: Fragment): F[Boolean] =
         q.query[Int].unique.map(_ > 0).transact(xa)
     }
+
+  /* ------ Types ------ */
+  sealed trait ColumnTag
+  type Column = String @@ ColumnTag
 }
