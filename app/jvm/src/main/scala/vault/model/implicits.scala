@@ -7,11 +7,11 @@ import doobie.util.meta.Meta
 import io.circe.{Decoder, Encoder}
 import org.http4s.{Entity, EntityDecoder}
 import shapeless.tag
-import vault.events.AccountsEvent
+import vault.events.TransactionStage
 import vault.model.Account._
 
 trait implicits {
-  implicit val eventTyper: EventTyper[AccountsEvent] = new EventTyper[AccountsEvent] {
+  implicit val eventTyper: EventTyper[TransactionStage] = new EventTyper[TransactionStage] {
     def eventType: EventType = tag[EventTypeTag][String]("AccountsEvent")
   }
 

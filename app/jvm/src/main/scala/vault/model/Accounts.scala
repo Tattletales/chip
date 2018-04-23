@@ -10,7 +10,7 @@ import cats.implicits._
 import fs2.Stream
 import io.circe.generic.auto._
 import shapeless.tag
-import vault.events.AccountsEvent.decodeAndCausalOrder
+import vault.events.Transactions.decodeAndCausalOrder
 import vault.events._
 import vault.implicits._
 import vault.model.Account._
@@ -39,7 +39,7 @@ trait Accounts[F[_]] {
   /**
     * All transactions of the given user.
     */
-  def transactions(of: User): F[List[AccountsEvent]]
+  def transactions(of: User): F[List[TransactionStage]]
 }
 
 object Accounts {
@@ -66,7 +66,7 @@ object Accounts {
 
           _ <- balance(from).ensureOr(cAmount => UnsufficentFunds(cAmount, from))(_ >= amount)
 
-          _ <- daemon.send[AccountsEvent](Withdraw(from, to, amount)).adaptError {
+          _ <- daemon.send[TransactionStage](Withdraw(from, to, amount)).adaptError {
             case SendError => TransferError
           }
         } yield ()
@@ -83,7 +83,7 @@ object Accounts {
       /**
         * @see [[Accounts.transactions]]
         */
-      def transactions(of: User): F[List[AccountsEvent]] = {
+      def transactions(of: User): F[List[TransactionStage]] = {
         val events = Stream.force(daemon.getLog.map(es => Stream(es: _*).covary[F]))
 
         events
@@ -143,7 +143,7 @@ object Accounts {
     /**
       * Warning: just an empty list
       */
-    def transactions(of: User): F[List[AccountsEvent]] = F.pure(List.empty)
+    def transactions(of: User): F[List[TransactionStage]] = F.pure(List.empty)
 
     def withAccounts(u: User, us: User*): F[Accounts[F]] =
       kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> F.pure(this)

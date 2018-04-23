@@ -12,8 +12,8 @@ import backend.storage.{Database, KVStore}
 import vault.model.Account.User
 import shapeless.tag
 import org.http4s.circe._
-import vault.events.AccountsEvent
-import vault.events.AccountsEvent.handleAccountsEvents
+import vault.events.TransactionStage
+import vault.events.Transactions.handleTransactionStages
 import vault.implicits._
 import backend.implicits._
 import backend.network.HttpClient
@@ -51,7 +51,7 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
                           tag[NodeIdTag][String]("alice"),
                           tag[NodeIdTag][String]("bob")))
 
-        handler = daemon.subscribe.through(handleAccountsEvents(daemon, kvs, accounts))
+        handler = daemon.subscribe.through(handleTransactionStages(daemon, kvs, accounts))
 
         server = Server.authed(accounts, daemon).run
 

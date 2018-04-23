@@ -28,9 +28,9 @@ import vault.model.Accounts.AccountNotFound
   *
   * The Deposit event depends on the Withdraw through the latter's lsn.
   */
-sealed trait AccountsEvent
+sealed trait TransactionStage
 
-case class Withdraw(from: User, to: User, amount: Money, lsn: Option[Lsn]) extends AccountsEvent
+case class Withdraw(from: User, to: User, amount: Money, lsn: Option[Lsn]) extends TransactionStage
 object Withdraw {
 
   /**
@@ -38,24 +38,29 @@ object Withdraw {
     */
   def apply(from: User, to: User, amount: Money): Withdraw = Withdraw(from, to, amount, None)
 }
-case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends AccountsEvent
+case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends TransactionStage
 
-sealed trait AccountsEventError extends Throwable
-case class MissingLsnError(w: Withdraw) extends AccountsEventError {
-  override def toString: String = s"Missing lsn in $w. It should have been added in the decoder."
-}
+object Transactions {
 
-object AccountsEvent {
-  def handleAccountsEvents[F[_]: Effect](daemon: GossipDaemon[F],
-                                         kvs: KVStore[F, User, Money],
-                                         accounts: Accounts[F]): Sink[F, Event] =
+  /**
+    * Handle the events.
+    *
+    * Decodes and reorders the events so they are in a causal order.
+    * ???
+    */
+  def handleTransactionStages[F[_]: Effect](daemon: GossipDaemon[F],
+                                            kvs: KVStore[F, User, Money],
+                                            accounts: Accounts[F]): Sink[F, Event] =
     _.through(decodeAndCausalOrder(accounts))
       .through(StreamUtils.log("Handling"))
-      .evalMap(handleEvent(daemon, kvs, accounts))
+      .evalMap(handleTransactionStage(daemon, kvs, accounts))
 
-  def decodeAndCausalOrder[F[_]: Effect, O](accounts: Accounts[F]): Pipe[F, Event, AccountsEvent] =
-    _.through(decode)
-      .through(causalOrder(accounts))
+  /**
+    * Decode and reorder the events so they are in causal order.
+    */
+  def decodeAndCausalOrder[F[_]: Effect, O](
+      accounts: Accounts[F]): Pipe[F, Event, TransactionStage] =
+    _.through(decode).through(causalOrder(accounts))
 
   /**
     * Converts Events in AccountsEvents.
@@ -64,10 +69,11 @@ object AccountsEvent {
     *   - [[PayloadDecodingError]] if the [[Event.payload]] cannot be decoded.
     *   - [[SenderError]] if there is a mismatch in the sender of event and the actual sender.
     */
-  private def decode[F[_]](implicit F: MonadError[F, Throwable]): Pipe[F, Event, AccountsEvent] = {
-    def convert(e: Event): F[AccountsEvent] =
+  private def decode[F[_]](
+      implicit F: MonadError[F, Throwable]): Pipe[F, Event, TransactionStage] = {
+    def convert(e: Event): F[TransactionStage] =
       for {
-        event <- F.fromEither(circeDecode[AccountsEvent](e.payload)).adaptError {
+        event <- F.fromEither(circeDecode[TransactionStage](e.payload)).adaptError {
           case _ => PayloadDecodingError(e.payload)
         }
 
@@ -90,11 +96,11 @@ object AccountsEvent {
     *   - Balance is insufficent.
     */
   private def causalOrder[F[_]: Monad](
-      accounts: Accounts[F]): Pipe[F, AccountsEvent, AccountsEvent] = {
-    def go(s: Stream[F, AccountsEvent],
+      accounts: Accounts[F]): Pipe[F, TransactionStage, TransactionStage] = {
+    def go(s: Stream[F, TransactionStage],
            accounts: Accounts[F],
            waitingFor: Map[Lsn, Deposit],
-           withdrawn: Map[Lsn, Money]): Pull[F, AccountsEvent, Unit] =
+           withdrawn: Map[Lsn, Money]): Pull[F, TransactionStage, Unit] =
       Stream
         .InvariantOps(s)
         .pull
@@ -156,15 +162,24 @@ object AccountsEvent {
   }
 
   /**
-    * Handles an AccountsEvent.
+    * Handles a [[TransactionStage]].
+    *
+    * Withdraw:
+    *   Gossip a Deposit if the transfer is for the current user.
+    *
+    * Deposit:
+    *   Do the actual transfer of money.
+    *   Succeeds if and only if both the debit and credit succeed.
+    *
+    * Fails with [[MissingLsnError]] if there is a [[Withdraw]] with [[Withdraw.lsn]] empty.
     */
-  private def handleEvent[F[_]: Functor](
+  private def handleTransactionStage[F[_]: Functor](
       daemon: GossipDaemon[F],
       kvs: KVStore[F, User, Money],
-      accounts: Accounts[F])(event: AccountsEvent)(implicit F: Effect[F]): F[Unit] =
+      accounts: Accounts[F])(event: TransactionStage)(implicit F: Effect[F]): F[Unit] =
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>
-        val deposit = daemon.send[AccountsEvent](Deposit(from, to, amount, lsn))
+        val deposit = daemon.send[TransactionStage](Deposit(from, to, amount, lsn))
 
         daemon.getNodeId.map(_ == to).ifM(deposit, F.unit)
 
@@ -183,11 +198,15 @@ object AccountsEvent {
     }
 
   /* ------ Errors ------ */
-  sealed trait AccountsEventError extends Throwable
+  sealed trait TransactionStageError extends Throwable
 
-  case class PayloadDecodingError(payload: Payload) extends AccountsEventError {
+  case class PayloadDecodingError(payload: Payload) extends TransactionStageError {
     override def toString: String = s"Failed decoding the payload $payload.\n"
   }
 
-  case class SenderError(m: String) extends AccountsEventError
+  case class SenderError(m: String) extends TransactionStageError
+
+  case class MissingLsnError(w: Withdraw) extends TransactionStageError {
+    override def toString: String = s"Missing lsn in $w. It should have been added in the decoder."
+  }
 }
