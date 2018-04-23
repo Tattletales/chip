@@ -15,7 +15,7 @@ import scala.collection.mutable
   * Key-value store DSL
   */
 trait KVStore[F[_], K, V] {
-  def get(k: K): F[V]
+  def get(k: K): F[Option[V]]
   def put(k: K, v: V): F[Unit]
   def put_*(kv: (K, V), kvs: (K, V)*): F[Unit]
   def remove(k: K): F[Unit]
@@ -28,14 +28,13 @@ object KVStore {
   /**
     * Interpreter to a [[Database]]
     */
-  def dbKVS[F[_]: Functor, K: Meta, V: Composite: Meta](db: Database[F])(
-      implicit F: MonadError[F, Throwable]): KVStore[F, K, V] =
+  def dbKVS[F[_]: Functor, K: Meta, V: Composite: Meta](db: Database[F]): KVStore[F, K, V] =
     new KVStore[F, K, V] {
-      def get(k: K): F[V] = db.query(sql"""
+      def get(k: K): F[Option[V]] = db.query(sql"""
            SELECT value
            FROM kv_store
            WHERE key = $k
-         """.stripMargin).flatMap(res => F.fromOption(res.headOption, KeyNotFound(k)))
+         """.stripMargin).map(_.headOption)
 
       def put(k: K, v: V): F[Unit] = put_*((k, v))
 
@@ -61,11 +60,9 @@ object KVStore {
   def mapKVS[F[_], K, V](implicit F: Sync[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
     val map = mutable.HashMap.empty[K, V]
 
-    def get(k: K): F[V] =
-      F.suspend(F.fromOption(map.get(k), KeyNotFound(k)))
+    def get(k: K): F[Option[V]] = F.delay(map.get(k))
 
-    def put(k: K, v: V): F[Unit] =
-      F.delay(map.put(k, v))
+    def put(k: K, v: V): F[Unit] = F.delay(map.put(k, v))
 
     def put_*(kv: (K, V), kvs: (K, V)*): F[Unit] =
       F.delay {
@@ -88,9 +85,4 @@ object KVStore {
   //      }
   //    def remove(k: K): State[Map[K, V], Unit] = State.modify(_ - k)
   //  }
-
-  /* ------ Errors ------ */
-
-  sealed trait KVStoreError extends Throwable
-  case class KeyNotFound[K](k: K) extends KVStoreError
 }

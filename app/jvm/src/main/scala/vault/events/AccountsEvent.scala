@@ -15,7 +15,6 @@ import io.circe.parser.{decode => circeDecode}
 import vault.implicits._
 import backend.implicits._
 import backend.storage.KVStore
-import backend.storage.KVStore.KeyNotFound
 import cats.data.OptionT
 import vault.model.Account.{Money, MoneyTag, User}
 import vault.model._
@@ -173,13 +172,9 @@ object AccountsEvent {
       case Deposit(from, to, amount, _) =>
         // Transfer the money. Succeeds only if both succeeded.
         for {
-          currentFrom <- kvs.get(from).adaptError {
-            case KeyNotFound(_) => AccountNotFound(from)
-          }
+          currentFrom <- accounts.balance(from)
 
-          currentTo <- kvs.get(to).adaptError {
-            case KeyNotFound(_) => AccountNotFound(to)
-          }
+          currentTo <- accounts.balance(to)
 
           _ <- kvs.put_*((from, tag[MoneyTag][Double](currentFrom - amount)),
                          (to, tag[MoneyTag][Double](currentTo + amount)))

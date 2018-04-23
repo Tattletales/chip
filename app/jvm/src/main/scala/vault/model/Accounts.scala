@@ -8,7 +8,6 @@ import backend.storage.{Database, KVStore}
 import doobie.implicits._
 import vault.implicits._
 import backend.implicits._
-import backend.storage.KVStore.KeyNotFound
 import cats.data.OptionT
 import cats.effect.Effect
 import io.circe.generic.auto._
@@ -52,8 +51,7 @@ object Accounts {
   /**
     * Interpreter to [[GossipDaemon]] and [[KVStore]] DSLs.
     */
-  def simple[F[_]: Effect](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
-      implicit F: Monad[F]): Accounts[F] =
+  def simple[F[_]: Effect](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money]): Accounts[F] =
     new Accounts[F] {
       def transfer(to: User, amount: Money): F[Unit] =
         for {
@@ -61,19 +59,13 @@ object Accounts {
           balanceOk <- balance(from).map(_ >= amount)
           _ <- if (balanceOk)
             daemon.send[AccountsEvent](Withdraw(from, to, amount))
-          else F.unit
+          else implicitly[Applicative[F]].unit
         } yield ()
 
       def balance(of: User): F[Money] =
-        kvs.get(of).adaptError {
-          case KeyNotFound(_) => AccountNotFound(of)
-        }
-
-      ///**
-      //  * Helper method which initializes an account with a given balance
-      //  */
-      //private def initBalance(user: User, amount: Money): F[Money] =
-      //  kvs.put(user, amount) >> F.pure(amount)
+        kvs
+          .get(of)
+          .flatMap(implicitly[MonadError[F, Throwable]].fromOption(_, AccountNotFound(of)))
 
       // TODO: converting from List to Stream, and back to a List is a bit silly.
       def transactions(of: User): F[List[AccountsEvent]] = {
@@ -90,7 +82,8 @@ object Accounts {
       }
 
       def withAccounts(u: User, us: User*): F[Accounts[F]] =
-        kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> F.pure(this)
+        kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> implicitly[Applicative[F]]
+          .pure(this)
 
       private def initialBalance(u: User): (User, Money) = {
         val m = tag[MoneyTag][Double](100)
@@ -104,27 +97,17 @@ object Accounts {
       for {
         from <- daemon.getNodeId
 
-        fromBalance <- kvs
-          .get(from)
-          .adaptError {
-            case KeyNotFound(_) => AccountNotFound(from)
-          }
+        fromBalance <- balance(from)
 
         _ <- kvs.put(from, tag[MoneyTag][Double](fromBalance - amount))
 
-        toBalance <- kvs
-          .get(to)
-          .adaptError {
-            case KeyNotFound(_) => AccountNotFound(to)
-          }
+        toBalance <- balance(to)
 
         _ <- kvs.put(to, tag[MoneyTag][Double](toBalance + amount))
       } yield ()
 
     def balance(of: User): F[Money] =
-      kvs.get(of).adaptError {
-        case KeyNotFound(_) => AccountNotFound(of)
-      }
+      kvs.get(of).flatMap(F.fromOption(_, AccountNotFound(of)))
 
     def transactions(of: User): F[List[AccountsEvent]] = F.pure(List.empty)
 
