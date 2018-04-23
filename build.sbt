@@ -63,6 +63,7 @@ val app = crossProject.settings(
     "com.chuusai" %% "shapeless" % "2.3.3",
     "com.typesafe.akka" %% "akka-http" % "10.1.0-RC2",
     "com.typesafe.akka" %% "akka-stream" % "2.5.9",
+    "com.lightbend.akka" %% "akka-stream-alpakka-sse" % "0.18",
     "com.github.zainab-ali" %% "fs2-reactive-streams" % "0.5.1",
     "com.github.mpilquist" %% "simulacrum" % "0.12.0",
     "org.webjars" % "bootstrap" % "3.2.0",

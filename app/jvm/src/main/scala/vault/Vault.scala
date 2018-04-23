@@ -37,14 +37,19 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
         //db: Database[F] = Database.doobieDatabase[F](xa)
         kvs = KVStore.mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
 
-        httpClient = HttpClient.http4sClient(tag[RootTag][String]("localhost:59234"))(client)
+        httpClient = HttpClient.http4sClient(client)
 
-        daemon = GossipDaemon.relativeHttpClient[F](httpClient, Subscriber.serverSentEvent)
+        daemon = GossipDaemon.relativeHttpClient[F](tag[RootTag][String]("http://localhost:59234"))(
+          httpClient,
+          Subscriber.serverSentEvent)
+        //daemon = GossipDaemon.mock(eventQueue)
 
         accounts <- Stream.eval(
           Accounts
             .simple[F](daemon, kvs)
-            .withAccounts(tag[NodeIdTag][String]("alice"), tag[NodeIdTag][String]("bob")))
+            .withAccounts(tag[NodeIdTag][String]("MyOwnKey"),
+                          tag[NodeIdTag][String]("alice"),
+                          tag[NodeIdTag][String]("bob")))
 
         handler = daemon.subscribe.through(handleAccountsEvents(daemon, kvs, accounts))
 

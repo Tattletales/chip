@@ -19,6 +19,7 @@ import shapeless.tag.@@
   * Data flowing through the HTTP client is always encoded as Json
   */
 trait HttpClient[F[_]] {
+  def getRaw(uri: Uri): F[String]
   def get[Response: Decoder](uri: Uri): F[Response]
 
   def getAndIgnore(uri: Uri): F[Unit]
@@ -36,36 +37,35 @@ object HttpClient {
     * Interpreter to `Http4s`.
     *
     * Warning: takes relative uri's.
-    *
-    * @param root the root (should NOT end with a '/')
     */
-  def http4sClient[F[_]](root: Root)(client: Client[F])(implicit F: Sync[F]): HttpClient[F] =
+  def http4sClient[F[_]](client: Client[F])(implicit F: Sync[F]): HttpClient[F] =
     new HttpClient[F] {
-      def get[Response: Decoder](relUri: Uri): F[Response] =
-        client.expect(root ++ relUri)(jsonOf[F, Response])
 
-      def getAndIgnore(relUri: Uri): F[Unit] = {
-        val uri = tag[UriTag][String](root ++ relUri)
+      def getRaw(uri: Uri): F[String] =
+        client.expect[String](uri)
+
+      def get[Response: Decoder](uri: Uri): F[Response] =
+        client.expect(uri)(jsonOf[F, Response])
+
+      def getAndIgnore(uri: Uri): F[Unit] = {
         client.get(uri) {
           case Status.Successful(_) => F.unit
           case _ => F.raiseError[Unit](FailedRequestResponse(uri))
         }
       }
 
-      def post[T: Encoder, Response: Decoder](relUri: Uri, body: T): F[Response] =
-        client.expect(genPostReq(tag[UriTag][String](root ++ relUri), body.asJson))(
+      def post[T: Encoder, Response: Decoder](uri: Uri, body: T): F[Response] =
+        client.expect(genPostReq(uri, body.asJson))(
           jsonOf[F, Response])
 
-      def postAndIgnore[T: Encoder](relUri: Uri, body: T): F[Unit] = {
-        val uri = tag[UriTag][String](root ++ relUri)
+      def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] = {
         client.fetch(genPostReq(uri, body.asJson)) {
           case Status.Successful(_) => F.unit
           case _ => F.raiseError(FailedRequestResponse(uri))
         }
       }
 
-      private def genPostReq[T](relUri: Uri, body: Json): F[Request[F]] = {
-        val uri = tag[UriTag][String](root ++ relUri)
+      private def genPostReq[T](uri: Uri, body: Json): F[Request[F]] = {
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
             Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, Json])

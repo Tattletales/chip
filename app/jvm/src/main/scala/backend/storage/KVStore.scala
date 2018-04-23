@@ -60,9 +60,14 @@ object KVStore {
   def mapKVS[F[_], K, V](implicit F: Sync[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
     val map = mutable.HashMap.empty[K, V]
 
-    def get(k: K): F[Option[V]] = F.delay(map.get(k))
+    def get(k: K): F[Option[V]] = F.delay {
+      val t = map.get(k)
+      t
+    }
 
-    def put(k: K, v: V): F[Unit] = F.delay(map.put(k, v))
+    def put(k: K, v: V): F[Unit] = F.delay {
+      map.put(k, v)
+    }
 
     def put_*(kv: (K, V), kvs: (K, V)*): F[Unit] =
       F.delay {

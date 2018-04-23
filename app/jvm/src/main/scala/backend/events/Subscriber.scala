@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
+import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.{Sink, Source}
 import cats.effect.{Async, Effect}
 import backend.events.Subscriber.{Event, EventIdTag, EventTypeTag, Lsn, PayloadTag}
@@ -20,7 +21,8 @@ import org.http4s
 import org.http4s.{DecodeResult, EntityDecoder, Message}
 import shapeless.tag.@@
 import shapeless.tag
-import io.circe.generic.auto._, io.circe.syntax._
+import io.circe.generic.auto._
+import io.circe.syntax._
 
 import scala.concurrent.ExecutionContext
 
@@ -43,6 +45,7 @@ object Subscriber {
       implicit val materializer: ActorMaterializer = ActorMaterializer()
       implicit val executionContext: ExecutionContext = system.dispatcher
 
+      /*
       def subscribe(uri: String): Stream[F, Event] =
         Stream.force(implicitly[Async[F]].async[Stream[F, Event]] { cb =>
           (for {
@@ -72,6 +75,30 @@ object Subscriber {
               )
           } yield fs2Stream).onComplete(t => cb(t.toEither))
         })
+        */
+
+      def subscribe(uri: String): Stream[F, Event] = {
+        val eventSource = EventSource(Uri(uri), (a: HttpRequest) => Http().singleRequest(a), None)
+
+        eventSource.runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
+          .toStream[F]
+          .flatMap(
+            sse =>
+              (for {
+                eventType <- sse.eventType
+                id <- sse.id
+                Array(nodeId, eventId) = id.split("-")
+              } yield
+                Event(Lsn(tag[NodeIdTag][String](nodeId), tag[EventIdTag][Int](eventId.toInt)),
+                  tag[EventTypeTag][String](eventType),
+                  tag[PayloadTag][String](sse.data))) match {
+                case Some(event) => Stream.emit(event)
+                case None =>
+                  Stream.raiseError[Event](
+                    new NoSuchElementException(s"Missing event-type or id in $sse"))
+              }
+          )
+      }
     }
 
   /* ------ Types ------ */

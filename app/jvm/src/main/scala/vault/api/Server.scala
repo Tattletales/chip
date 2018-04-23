@@ -39,7 +39,7 @@ object Server {
   def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]]](accounts: Accounts[F],
                                                          daemon: GossipDaemon[F]): Server[F] =
     new Server[F] {
-      private val amountFieldId = "send-money-input-id"
+      private val amountFieldId = "amount-input-id"
       private val beneficiaryFieldId = "beneficiary-input-id"
 
       private def homeForm(balance: Money) =
@@ -204,6 +204,7 @@ object Server {
 
         case req @ POST -> Root / "transfer" =>
           req.decode[UrlForm] { data =>
+            // TODO: Do not fail silently
             val to = tag[NodeIdTag][String](
               data.values.get(beneficiaryFieldId).map(_.foldRight("")(_ + _)).getOrElse(""))
             val amount = tag[MoneyTag][Double](
