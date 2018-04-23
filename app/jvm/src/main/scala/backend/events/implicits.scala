@@ -41,4 +41,7 @@ trait implicits {
   implicit def eventTypeEntityDecoder[F[_]: Functor](
       implicit D: EntityDecoder[F, String]): EntityDecoder[F, EventType] =
     D.map(tag[EventTypeTag][String])
+
+  implicit def eventTypeDecoder(implicit D: Decoder[String]): Decoder[EventType] =
+    D.map(tag[EventTypeTag][String])
 }

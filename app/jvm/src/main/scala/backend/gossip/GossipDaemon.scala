@@ -17,12 +17,13 @@ import io.circe.{Encoder, Json}
 import backend.network.HttpClient
 import backend.network.HttpClient.UriTag
 import org.http4s.{EntityDecoder, EntityEncoder}
+import org.http4s.circe._
 import utils.StreamUtils.log
 import shapeless.tag
 import shapeless.tag.@@
 
 /**
-  * Gossip deamon DSL
+  * Gossip daemon DSL
   */
 trait GossipDaemon[F[_]] {
 
@@ -54,8 +55,7 @@ object GossipDaemon {
   /**
     * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
     */
-  def relativeHttpClient[
-      F[_]: EntityDecoder[?[_], List[Event]]: EntityDecoder[?[_], NodeId]: EntityDecoder[?[_], Int]: EntityEncoder[?[_], Json]](httpClient: HttpClient[F], subscriber: Subscriber[F])(
+  def relativeHttpClient[F[_]](httpClient: HttpClient[F], subscriber: Subscriber[F])(
       implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
     new GossipDaemon[F] {
       def getNodeId: F[NodeId] =
@@ -65,7 +65,7 @@ object GossipDaemon {
 
       def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
         F.adaptError(
-          httpClient.getAndIgnore[Int](
+          httpClient.getAndIgnore(
             tag[UriTag][String](s"/gossip?t=${E.eventType.toString}&d=${e.asJson.noSpaces}"))) {
           case _ => SendError
         }
@@ -73,7 +73,10 @@ object GossipDaemon {
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"/events")
 
       def getLog: F[List[Event]] =
-        F.adaptError(httpClient.get[List[Event]](tag[UriTag][String](s"/log"))) {
+        F.adaptError(
+          httpClient
+            .get[Json](tag[UriTag][String](s"/log"))
+            .map(_.as[List[Event]].right.get)) {
           case _ => LogRetrievalError
         }
     }

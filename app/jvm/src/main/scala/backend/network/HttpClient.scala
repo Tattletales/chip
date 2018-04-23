@@ -2,7 +2,12 @@ package backend.network
 
 import backend.network.HttpClient.Uri
 import cats.MonadError
+import cats.effect.Sync
 import cats.implicits._
+import io.circe.{Decoder, Encoder, Json}
+import io.circe.generic.auto._
+import io.circe.syntax._
+import org.http4s.circe._
 import org.http4s.client.Client
 import org.http4s.{Uri => Http4sUri, _}
 import shapeless.tag
@@ -12,15 +17,13 @@ import shapeless.tag.@@
   * HTTP client DSL
   */
 trait HttpClient[F[_]] {
-  def get[Response: EntityDecoder[F, ?]](uri: Uri): F[Response]
+  def get[Response: Decoder](uri: Uri): F[Response]
 
-  def getAndIgnore[Response: EntityDecoder[F, ?]](uri: Uri): F[Unit]
+  def getAndIgnore(uri: Uri): F[Unit]
 
-  def post[T, Response: EntityDecoder[F, ?]](uri: Uri, body: T)(
-      implicit T: EntityEncoder[F, T]
-  ): F[Response]
+  def post[T: Encoder, Response: Decoder](uri: Uri, body: T): F[Response]
 
-  def postAndIgnore[T: EntityEncoder[F, ?]](uri: Uri, body: T): F[Unit]
+  def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit]
 }
 
 object HttpClient {
@@ -34,29 +37,36 @@ object HttpClient {
     *
     * @param root the root
     */
-  def http4sClient[F[_]](root: Root)(client: Client[F])(
-      implicit F: MonadError[F, Throwable]): HttpClient[F] =
+  def http4sClient[F[_]](root: Root)(client: Client[F])(implicit F: Sync[F]): HttpClient[F] =
     new HttpClient[F] {
-      def get[Response: EntityDecoder[F, ?]](relUri: Uri): F[Response] =
-        client.expect[Response](root ++ relUri)
+      def get[Response: Decoder](relUri: Uri): F[Response] =
+        client.expect(root ++ relUri)(jsonOf[F, Response])
 
-      def getAndIgnore[Response: EntityDecoder[F, ?]](relUri: Uri): F[Unit] =
-        get(tag[UriTag][String](root ++ relUri)).map(_ => ())
+      def getAndIgnore(relUri: Uri): F[Unit] = {
+        val uri = tag[UriTag][String](root ++ relUri)
+        client.get(uri) {
+          case Status.Successful(_) => F.pure(())
+          case _                    => F.raiseError[Unit](FailedRequestResponse(uri))
+        }
+      }
 
-      def post[T, Response: EntityDecoder[F, ?]](relUri: Uri, body: T)(
-          implicit T: EntityEncoder[F, T]
-      ): F[Response] =
-        client.expect[Response](genPostReq(tag[UriTag][String](root ++ relUri), body))
+      def post[T: Encoder, Response: Decoder](relUri: Uri, body: T): F[Response] =
+        client.expect(genPostReq(tag[UriTag][String](root ++ relUri), body.asJson))(
+          jsonOf[F, Response])
 
-      def postAndIgnore[T: EntityEncoder[F, ?]](relUri: Uri, body: T): F[Unit] =
-        client.fetch[Unit](genPostReq(tag[UriTag][String](root ++ relUri), body))(_ => F.pure(()))
+      def postAndIgnore[T: Encoder](relUri: Uri, body: T): F[Unit] = {
+        val uri = tag[UriTag][String](root ++ relUri)
+        client.fetch(genPostReq(uri, body.asJson)) {
+          case Status.Successful(_) => F.pure(())
+          case _                    => F.raiseError(FailedRequestResponse(uri))
+        }
+      }
 
-      private def genPostReq[T](relUri: Uri, body: T)(
-          implicit T: EntityEncoder[F, T]): F[Request[F]] = {
+      private def genPostReq[T](relUri: Uri, body: Json): F[Request[F]] = {
         val uri = tag[UriTag][String](root ++ relUri)
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
-            Request(method = Method.POST, uri = uri).withBody(body)(F, T)
+            Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, Json])
           }
           .adaptError {
             case ParseFailure(sanitized, _) =>
@@ -77,4 +87,5 @@ object HttpClient {
 
   sealed trait HttpClientError extends Throwable
   case class MalformedUriError(uri: Uri, m: String) extends HttpClientError
+  case class FailedRequestResponse(uri: Uri) extends HttpClientError
 }

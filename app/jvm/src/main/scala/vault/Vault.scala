@@ -35,8 +35,7 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
         //eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
 
         //db: Database[F] = Database.doobieDatabase[F](xa)
-        kvs: KVStore[F, User, Money] = KVStore
-          .mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
+        kvs = KVStore.mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
 
         httpClient = HttpClient.http4sClient(tag[RootTag][String]("localhost:59234"))(client)
 

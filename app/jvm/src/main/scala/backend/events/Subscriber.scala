@@ -20,6 +20,7 @@ import org.http4s
 import org.http4s.{DecodeResult, EntityDecoder, Message}
 import shapeless.tag.@@
 import shapeless.tag
+import io.circe.generic.auto._, io.circe.syntax._
 
 import scala.concurrent.ExecutionContext
 
