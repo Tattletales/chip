@@ -1,21 +1,18 @@
 package vault.model
 
-import backend.events.Subscriber.Lsn
-import cats.{Applicative, Foldable, Functor, Monad, MonadError}
-import cats.implicits._
 import backend.gossip.GossipDaemon
-import backend.storage.{Database, KVStore}
-import doobie.implicits._
-import vault.implicits._
+import backend.gossip.GossipDaemon.{NodeIdError, SendError}
+import backend.storage.KVStore
 import backend.implicits._
-import cats.data.OptionT
+import cats.MonadError
 import cats.effect.Effect
-import io.circe.generic.auto._
-import io.circe.Encoder
+import cats.implicits._
 import fs2.Stream
+import io.circe.generic.auto._
 import shapeless.tag
 import vault.events.AccountsEvent.decodeAndCausalOrder
 import vault.events._
+import vault.implicits._
 import vault.model.Account._
 
 /**
@@ -51,23 +48,41 @@ object Accounts {
   /**
     * Interpreter to [[GossipDaemon]] and [[KVStore]] DSLs.
     */
-  def simple[F[_]: Effect](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money]): Accounts[F] =
+  def default[F[_]](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
+      implicit F: Effect[F]): Accounts[F] =
     new Accounts[F] {
+
+      /**
+        * @see [[Accounts.transfer]]
+        *
+        * Failures:
+        *   - [[UnsufficentFunds]] if there are not sufficient funds in the account to transfer from.
+        *   - [[UnknownUser]] if the current user cannot be determined.
+        *   - [[TransferError]] if the transfer cannot be initialized.
+        */
       def transfer(to: User, amount: Money): F[Unit] =
         for {
-          from <- daemon.getNodeId
-          balanceOk <- balance(from).map(_ >= amount)
-          _ <- if (balanceOk)
-            daemon.send[AccountsEvent](Withdraw(from, to, amount))
-          else implicitly[Applicative[F]].unit
+          from <- daemon.getNodeId.adaptError { case NodeIdError => UnknownUser }
+
+          _ <- balance(from).ensureOr(cAmount => UnsufficentFunds(cAmount, from))(_ >= amount)
+
+          _ <- daemon.send[AccountsEvent](Withdraw(from, to, amount)).adaptError {
+            case SendError => TransferError
+          }
         } yield ()
 
+      /**
+        * @see [[Accounts.balance]]
+        *
+        * Fails with [[AccountNotFound]] if the account does not exist.
+        */
       def balance(of: User): F[Money] =
-        kvs
-          .get(of)
-          .flatMap(implicitly[MonadError[F, Throwable]].fromOption(_, AccountNotFound(of)))
+        kvs.get(of).flatMap(F.fromOption(_, AccountNotFound(of)))
 
       // TODO: converting from List to Stream, and back to a List is a bit silly.
+      /**
+        * @see [[Accounts.transactions]]
+        */
       def transactions(of: User): F[List[AccountsEvent]] = {
         val events = Stream.force(daemon.getLog.map(es => Stream(es: _*).covary[F]))
 
@@ -75,16 +90,21 @@ object Accounts {
           .through(decodeAndCausalOrder(this))
           .filter { // Keep transactions related to the user
             case Withdraw(from, _, _, _) => from == of
-            case Deposit(_, to, _, _) => to == of
+            case Deposit(_, to, _, _)    => to == of
           }
           .compile
           .toList
       }
 
+      /**
+        * @see [[Accounts.withAccounts]]
+        */
       def withAccounts(u: User, us: User*): F[Accounts[F]] =
-        kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> implicitly[Applicative[F]]
-          .pure(this)
+        kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> F.pure(this)
 
+      /**
+        * Initial balance of 100
+        */
       private def initialBalance(u: User): (User, Money) = {
         val m = tag[MoneyTag][Double](100)
         (u, m)
@@ -93,6 +113,12 @@ object Accounts {
 
   def mock[F[_]](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
       implicit F: MonadError[F, Throwable]): Accounts[F] = new Accounts[F] {
+
+    /**
+      * Transfer money from the current user's account to the given user.
+      *
+      * Warning: it does not check if there are sufficient funds in the account.
+      */
     def transfer(to: User, amount: Money): F[Unit] =
       for {
         from <- daemon.getNodeId
@@ -106,9 +132,17 @@ object Accounts {
         _ <- kvs.put(to, tag[MoneyTag][Double](toBalance + amount))
       } yield ()
 
+    /**
+      * Balance of the given user's accounts.
+      *
+      * Fails with [[AccountNotFound]] if the account does not exist.
+      */
     def balance(of: User): F[Money] =
       kvs.get(of).flatMap(F.fromOption(_, AccountNotFound(of)))
 
+    /**
+      * Warning: just an empty list
+      */
     def transactions(of: User): F[List[AccountsEvent]] = F.pure(List.empty)
 
     def withAccounts(u: User, us: User*): F[Accounts[F]] =
@@ -125,4 +159,8 @@ object Accounts {
   case class AccountNotFound(user: User) extends AccountsError {
     override def toString: String = s"No account for $user."
   }
+  case class UnsufficentFunds(currentAmount: Money, of: User) extends AccountsError
+  case object UnknownUser extends AccountsError
+  case object TransferError extends AccountsError
+
 }

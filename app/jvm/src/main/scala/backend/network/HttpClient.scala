@@ -38,7 +38,7 @@ object HttpClient {
     *
     * Warning: takes relative uri's.
     */
-  def http4sClient[F[_]](client: Client[F])(implicit F: Sync[F]): HttpClient[F] =
+  def default[F[_]](client: Client[F])(implicit F: Sync[F]): HttpClient[F] =
     new HttpClient[F] {
 
       def getRaw(uri: Uri): F[String] =

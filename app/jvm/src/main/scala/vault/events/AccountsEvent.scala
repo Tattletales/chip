@@ -1,6 +1,6 @@
 package vault.events
 
-import cats.{Functor, Monad, MonadError, Traverse}
+import cats.{Functor, Monad, MonadError}
 import cats.effect.Effect
 import cats.implicits._
 import backend.events.EventTyper
@@ -59,25 +59,26 @@ object AccountsEvent {
 
   /**
     * Converts Events in AccountsEvents.
-    * Ignores AccountsEvents with mismatching senders.
+    *
+    * Failures:
+    *   - [[PayloadDecodingError]] if the [[Event.payload]] cannot be decoded.
+    *   - [[SenderError]] if there is a mismatch in the sender of event and the actual sender.
     */
   private def decode[F[_]](implicit F: MonadError[F, Throwable]): Pipe[F, Event, AccountsEvent] = {
-    def convert(e: Event): F[AccountsEvent] = {
-      val t = for {
-        event <- circeDecode[AccountsEvent](e.payload).leftMap(err =>
-          PayloadDecodingError(e.payload, err.getMessage))
+    def convert(e: Event): F[AccountsEvent] =
+      for {
+        event <- F.fromEither(circeDecode[AccountsEvent](e.payload)).adaptError {
+          case _ => PayloadDecodingError(e.payload)
+        }
+
         convertedEvent <- event match {
-          case d @ Deposit(from, _, _, _) if e.lsn.nodeId == from =>
-            Right[VaultError, AccountsEvent](d)
+          case d @ Deposit(from, _, _, _) if e.lsn.nodeId == from => F.pure(d)
           case Withdraw(from, to, amount, _) if e.lsn.nodeId == from =>
-            Right[AccountsEventError, AccountsEvent](Withdraw(from, to, amount, Some(e.lsn)))
+            F.pure(Withdraw(from, to, amount, Some(e.lsn)))
           case e =>
-            Left[AccountsEventError, AccountsEvent](SenderError(s"Wrong sender for event: $e"))
+            F.raiseError(SenderError(s"Wrong sender for event: $e"))
         }
       } yield convertedEvent
-
-      F.fromEither(t)
-    }
 
     _.evalMap(convert)
   }
@@ -184,8 +185,8 @@ object AccountsEvent {
   /* ------ Errors ------ */
   sealed trait AccountsEventError extends Throwable
 
-  case class PayloadDecodingError(payload: Payload, m: String) extends AccountsEventError {
-    override def toString: String = s"Failed decoding the payload $payload.\n$m"
+  case class PayloadDecodingError(payload: Payload) extends AccountsEventError {
+    override def toString: String = s"Failed decoding the payload $payload.\n"
   }
 
   case class SenderError(m: String) extends AccountsEventError

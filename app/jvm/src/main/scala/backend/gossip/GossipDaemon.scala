@@ -13,7 +13,7 @@ import fs2.Stream
 import io.circe.generic.auto._
 import io.circe.parser.decode
 import io.circe.syntax._
-import io.circe.{Encoder, Json}
+import io.circe.{DecodingFailure, Encoder, Json}
 import backend.network.HttpClient
 import backend.network.HttpClient.{Root, UriTag}
 import org.http4s.{EntityDecoder, EntityEncoder}
@@ -54,30 +54,55 @@ object GossipDaemon {
   /**
     * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
     */
-  def relativeHttpClient[F[_]](root: Root)(httpClient: HttpClient[F], subscriber: Subscriber[F])(
+  def default[F[_]](root: Root)(httpClient: HttpClient[F], subscriber: Subscriber[F])(
       implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
     new GossipDaemon[F] {
-      def getNodeId: F[NodeId] =
-        F.adaptError(
-          httpClient.getRaw(tag[UriTag][String](s"$root/unique")).map(tag[NodeIdTag][String])) {
-          case _ => NodeIdError
-        }
 
+      /**
+        * @see [[GossipDaemon.getNodeId]]
+        *
+        * Failures:
+        *   - [[NodeIdError]] if the node id cannot be retrieved.
+        */
+      def getNodeId: F[NodeId] =
+        httpClient
+          .getRaw(tag[UriTag][String](s"$root/unique"))
+          .map(tag[NodeIdTag][String])
+          .adaptError {
+            case _ => NodeIdError
+          }
+
+      /**
+        * @see [[GossipDaemon.send]]
+        *
+        * Failures:
+        *   - [[SendError]] if the `e` cannot be sent.
+        */
       def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
-        F.adaptError(httpClient.getAndIgnore(
-          tag[UriTag][String](s"$root/gossip?t=${E.eventType.toString}&d=${e.asJson.noSpaces}"))) {
-          case _ => SendError
-        }
+        httpClient
+          .getAndIgnore(
+            tag[UriTag][String](s"$root/gossip?t=${E.eventType.toString}&d=${e.asJson.noSpaces}"))
+          .adaptError {
+            case _ => SendError
+          }
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
 
+      /**
+        * @see [[GossipDaemon.getLog]]
+        *
+        * Failures:
+        *   - [[LogRetrievalError]] if the log cannot be retrieved.
+        */
       def getLog: F[List[Event]] =
-        F.adaptError(
-          httpClient
-            .get[Json](tag[UriTag][String](s"$root/log"))
-            .map(_.as[List[Event]].right.get)) {
-          case _ => LogRetrievalError
-        }
+        httpClient
+          .get[Json](tag[UriTag][String](s"$root/log"))
+          .flatMap { json =>
+            F.fromEither(json.as[List[Event]])
+          }
+          .adaptError {
+            case _ => LogRetrievalError
+          }
     }
 
   /**

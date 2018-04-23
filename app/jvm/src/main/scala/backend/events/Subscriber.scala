@@ -1,28 +1,21 @@
 package backend.events
 
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.sse.ServerSentEvent
-import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.sse.scaladsl.EventSource
-import akka.stream.scaladsl.{Sink, Source}
-import cats.effect.{Async, Effect}
-import backend.events.Subscriber.{Event, EventIdTag, EventTypeTag, Lsn, PayloadTag}
-import fs2.Stream
-import fs2.interop.reactivestreams._
+import akka.stream.scaladsl.Sink
+import backend.events.Subscriber.Event
 import backend.gossip.model.Node.{NodeId, NodeIdTag}
-import cats.Functor
-import io.circe.{Decoder, Encoder}
-import org.http4s
-import org.http4s.{DecodeResult, EntityDecoder, Message}
+import cats.ApplicativeError
+import cats.effect.Effect
+import cats.implicits._
+import fs2.interop.reactivestreams._
+import fs2.{Pipe, Stream}
 import shapeless.tag.@@
 import shapeless.tag
-import io.circe.generic.auto._
-import io.circe.syntax._
 
 import scala.concurrent.ExecutionContext
 
@@ -30,6 +23,10 @@ import scala.concurrent.ExecutionContext
   * Subscriber DSL
   */
 trait Subscriber[F[_]] {
+
+  /**
+    * Subscribe to the event stream
+    */
   def subscribe(uri: String): Stream[F, Event]
 }
 
@@ -45,59 +42,40 @@ object Subscriber {
       implicit val materializer: ActorMaterializer = ActorMaterializer()
       implicit val executionContext: ExecutionContext = system.dispatcher
 
-      /*
-      def subscribe(uri: String): Stream[F, Event] =
-        Stream.force(implicitly[Async[F]].async[Stream[F, Event]] { cb =>
-          (for {
-            httpResponse <- Http().singleRequest(HttpRequest(uri = uri))
-
-            akkaStream <- Unmarshal(httpResponse)
-              .to[Source[ServerSentEvent, NotUsed]]
-
-            fs2Stream = akkaStream
-              .runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
-              .toStream[F]
-              .flatMap(
-                sse =>
-                  (for {
-                    eventType <- sse.eventType
-                    id <- sse.id
-                    Array(nodeId, eventId) = id.split("-")
-                  } yield
-                    Event(Lsn(tag[NodeIdTag][String](nodeId), tag[EventIdTag][Int](eventId.toInt)),
-                          tag[EventTypeTag][String](eventType),
-                          tag[PayloadTag][String](sse.data))) match {
-                    case Some(event) => Stream.emit(event)
-                    case None =>
-                      Stream.raiseError[Event](
-                        new NoSuchElementException(s"Missing event-type or id in $sse"))
-                }
-              )
-          } yield fs2Stream).onComplete(t => cb(t.toEither))
-        })
+      /**
+        * @see [[Subscriber.subscribe]]
+        *
+        * Failures:
+        *   - [[MalformedSSE]] TODO documentation
         */
-
       def subscribe(uri: String): Stream[F, Event] = {
         val eventSource = EventSource(Uri(uri), (a: HttpRequest) => Http().singleRequest(a), None)
 
-        eventSource.runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
+        eventSource
+          .runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
           .toStream[F]
-          .flatMap(
-            sse =>
-              (for {
-                eventType <- sse.eventType
-                id <- sse.id
-                Array(nodeId, eventId) = id.split("-")
-              } yield
-                Event(Lsn(tag[NodeIdTag][String](nodeId), tag[EventIdTag][Int](eventId.toInt)),
+          .through(convert)
+      }
+
+      /**
+        * Convert from [[ServerSentEvent]] to [[Event]]
+        *
+        * Fails with [[MalformedSSE]] if there's [[ServerSentEvent]] that cannot be decoded.
+        * For instance, it doesn't have an event type or the id is not to specs ("nodeId-eventId").
+        */
+      private def convert[F[_]](
+          implicit F: ApplicativeError[F, Throwable]): Pipe[F, ServerSentEvent, Event] = _.evalMap {
+        sse =>
+          val maybeEvent = for {
+            eventType <- sse.eventType
+            id <- sse.id
+            Array(nodeId, eventId) = id.split("-")
+          } yield
+            Event(Lsn(tag[NodeIdTag][String](nodeId), tag[EventIdTag][Int](eventId.toInt)),
                   tag[EventTypeTag][String](eventType),
-                  tag[PayloadTag][String](sse.data))) match {
-                case Some(event) => Stream.emit(event)
-                case None =>
-                  Stream.raiseError[Event](
-                    new NoSuchElementException(s"Missing event-type or id in $sse"))
-              }
-          )
+                  tag[PayloadTag][String](sse.data))
+
+          F.fromOption(maybeEvent, MalformedSSE)
       }
     }
 
@@ -114,4 +92,8 @@ object Subscriber {
   case class Lsn(nodeId: NodeId, eventId: EventId)
 
   case class Event(lsn: Lsn, eventType: EventType, payload: Payload)
+
+  /* ------ Errors ------ */
+  sealed trait SubscriberError extends Throwable
+  case object MalformedSSE extends SubscriberError
 }

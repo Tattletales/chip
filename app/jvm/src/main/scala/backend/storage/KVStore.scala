@@ -1,8 +1,7 @@
 package backend.storage
 
-import cats.{Applicative, ApplicativeError, Functor, MonadError}
-import cats.data.State
-import cats.effect.{Effect, Sync}
+import cats.Functor
+import cats.effect.Sync
 import cats.implicits._
 import doobie.implicits._
 import doobie.util.composite.Composite
@@ -60,14 +59,9 @@ object KVStore {
   def mapKVS[F[_], K, V](implicit F: Sync[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
     val map = mutable.HashMap.empty[K, V]
 
-    def get(k: K): F[Option[V]] = F.delay {
-      val t = map.get(k)
-      t
-    }
+    def get(k: K): F[Option[V]] = F.delay(map.get(k))
 
-    def put(k: K, v: V): F[Unit] = F.delay {
-      map.put(k, v)
-    }
+    def put(k: K, v: V): F[Unit] = F.delay(map.put(k, v))
 
     def put_*(kv: (K, V), kvs: (K, V)*): F[Unit] =
       F.delay {
@@ -78,16 +72,4 @@ object KVStore {
 
     def remove(k: K): F[Unit] = F.delay(map.remove(k))
   }
-
-  //def stateKVS[K, V]: KVStore[State[Map[K, V], ?], K, V] =
-  //  new KVStore[State[Map[K, V], ?], K, V] {
-  //    def get(k: K): State[Map[K, V], Option[V]] =
-  //      ApplicativeError[State[Map[K, V], ?], Throwable].fromOption(State.inspect(_.get(k)), )
-  //    def put(k: K, v: V): State[Map[K, V], Unit] = State.modify(_ + (k -> v))
-  //    def put_*(kv: (K, V), kvs: (K, V)*): State[Map[K, V], Unit] =
-  //      kvs.foldLeft(put(kv._1, kv._2)) {
-  //        case (state, (k, v)) => state.modify(_ + (k -> v))
-  //      }
-  //    def remove(k: K): State[Map[K, V], Unit] = State.modify(_ - k)
-  //  }
 }
