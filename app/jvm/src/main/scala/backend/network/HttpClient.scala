@@ -15,6 +15,8 @@ import shapeless.tag.@@
 
 /**
   * HTTP client DSL
+  *
+  * Data flowing through the HTTP client is always encoded as Json
   */
 trait HttpClient[F[_]] {
   def get[Response: Decoder](uri: Uri): F[Response]
@@ -35,7 +37,7 @@ object HttpClient {
     *
     * Warning: takes relative uri's.
     *
-    * @param root the root
+    * @param root the root (should NOT end with a '/')
     */
   def http4sClient[F[_]](root: Root)(client: Client[F])(implicit F: Sync[F]): HttpClient[F] =
     new HttpClient[F] {
@@ -45,8 +47,8 @@ object HttpClient {
       def getAndIgnore(relUri: Uri): F[Unit] = {
         val uri = tag[UriTag][String](root ++ relUri)
         client.get(uri) {
-          case Status.Successful(_) => F.pure(())
-          case _                    => F.raiseError[Unit](FailedRequestResponse(uri))
+          case Status.Successful(_) => F.unit
+          case _ => F.raiseError[Unit](FailedRequestResponse(uri))
         }
       }
 
@@ -57,8 +59,8 @@ object HttpClient {
       def postAndIgnore[T: Encoder](relUri: Uri, body: T): F[Unit] = {
         val uri = tag[UriTag][String](root ++ relUri)
         client.fetch(genPostReq(uri, body.asJson)) {
-          case Status.Successful(_) => F.pure(())
-          case _                    => F.raiseError(FailedRequestResponse(uri))
+          case Status.Successful(_) => F.unit
+          case _ => F.raiseError(FailedRequestResponse(uri))
         }
       }
 
