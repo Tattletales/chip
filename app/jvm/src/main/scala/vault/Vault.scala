@@ -1,5 +1,6 @@
 package vault
 
+import backend.events.Subscriber
 import backend.events.Subscriber.{Event, EventId}
 import cats.effect.{Effect, IO}
 import doobie.util.transactor.Transactor
@@ -15,6 +16,9 @@ import vault.events.AccountsEvent
 import vault.events.AccountsEvent.handleAccountsEvents
 import vault.implicits._
 import backend.implicits._
+import backend.network.HttpClient
+import backend.network.HttpClient.RootTag
+import org.http4s.client.blaze.Http1Client
 import vault.api.Server
 import vault.model.Account.Money
 import vault.model.Accounts
@@ -27,13 +31,16 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       for {
-        eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
+        client <- Http1Client.stream()
+        //eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
 
         //db: Database[F] = Database.doobieDatabase[F](xa)
         kvs: KVStore[F, User, Money] = KVStore
           .mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
 
-        daemon = GossipDaemon.mock[F](eventQueue)
+        httpClient = HttpClient.http4sClient(tag[RootTag][String]("localhost:59234"))(client)
+
+        daemon = GossipDaemon.relativeHttpClient[F](httpClient, Subscriber.serverSentEvent)
 
         accounts <- Stream.eval(
           Accounts

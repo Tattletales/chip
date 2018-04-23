@@ -55,10 +55,8 @@ object GossipDaemon {
     * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
     */
   def relativeHttpClient[
-      F[_]: EntityDecoder[?[_], List[Event]]: EntityDecoder[?[_], NodeId]: EntityDecoder[
-        ?[_],
-        String]: EntityEncoder[?[_], Json]](httpClient: HttpClient[F], subscriber: Subscriber[F])(
-      F: MonadError[F, Throwable]): GossipDaemon[F] =
+      F[_]: EntityDecoder[?[_], List[Event]]: EntityDecoder[?[_], NodeId]: EntityDecoder[?[_], Int]: EntityEncoder[?[_], Json]](httpClient: HttpClient[F], subscriber: Subscriber[F])(
+      implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
     new GossipDaemon[F] {
       def getNodeId: F[NodeId] =
         F.adaptError(httpClient.get[NodeId](tag[UriTag][String]("/unique"))) {
@@ -67,7 +65,7 @@ object GossipDaemon {
 
       def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
         F.adaptError(
-          httpClient.getAndIgnore[String](
+          httpClient.getAndIgnore[Int](
             tag[UriTag][String](s"/gossip?t=${E.eventType.toString}&d=${e.asJson.noSpaces}"))) {
           case _ => SendError
         }
