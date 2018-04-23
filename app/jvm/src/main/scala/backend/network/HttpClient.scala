@@ -1,7 +1,6 @@
 package backend.network
 
 import backend.network.HttpClient.Uri
-import cats.MonadError
 import cats.effect.Sync
 import cats.implicits._
 import io.circe.{Decoder, Encoder, Json}
@@ -19,13 +18,30 @@ import shapeless.tag.@@
   * Data flowing through the HTTP client is always encoded as Json
   */
 trait HttpClient[F[_]] {
+
+  /**
+    * Get request and return the response as a string.
+    */
   def getRaw(uri: Uri): F[String]
+
+  /**
+    * Get request
+    */
   def get[Response: Decoder](uri: Uri): F[Response]
 
+  /**
+    * Get request and ignore the response.
+    */
   def getAndIgnore(uri: Uri): F[Unit]
 
+  /**
+    * Post request
+    */
   def post[T: Encoder, Response: Decoder](uri: Uri, body: T): F[Response]
 
+  /**
+    * Post request and ignore the response
+    */
   def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit]
 }
 
@@ -35,8 +51,6 @@ object HttpClient {
 
   /**
     * Interpreter to `Http4s`.
-    *
-    * Warning: takes relative uri's.
     */
   def default[F[_]](client: Client[F])(implicit F: Sync[F]): HttpClient[F] =
     new HttpClient[F] {
@@ -47,25 +61,37 @@ object HttpClient {
       def get[Response: Decoder](uri: Uri): F[Response] =
         client.expect(uri)(jsonOf[F, Response])
 
-      def getAndIgnore(uri: Uri): F[Unit] = {
+      /**
+        * @see [[HttpClient.getAndIgnore]]
+        *
+        * Fails with [[FailedRequestResponse]] if the request failed.
+        */
+      def getAndIgnore(uri: Uri): F[Unit] =
         client.get(uri) {
           case Status.Successful(_) => F.unit
-          case _ => F.raiseError[Unit](FailedRequestResponse(uri))
+          case _                    => F.raiseError[Unit](FailedRequestResponse(uri))
         }
-      }
 
       def post[T: Encoder, Response: Decoder](uri: Uri, body: T): F[Response] =
-        client.expect(genPostReq(uri, body.asJson))(
-          jsonOf[F, Response])
+        client.expect(genPostReq(uri, body.asJson))(jsonOf[F, Response])
 
-      def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] = {
+      /**
+        * @see [[HttpClient.postAndIgnore()]]
+        *
+        * Fails with [[FailedRequestResponse]] if the request failed.
+        */
+      def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] =
         client.fetch(genPostReq(uri, body.asJson)) {
           case Status.Successful(_) => F.unit
-          case _ => F.raiseError(FailedRequestResponse(uri))
+          case _                    => F.raiseError(FailedRequestResponse(uri))
         }
-      }
 
-      private def genPostReq[T](uri: Uri, body: Json): F[Request[F]] = {
+      /**
+        * Generate a POST request.
+        *
+        * Fails with [[MalformedUriError]] if the URI is invalid.
+        */
+      private def genPostReq[T](uri: Uri, body: Json): F[Request[F]] =
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
             Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, Json])
@@ -74,7 +100,6 @@ object HttpClient {
             case ParseFailure(sanitized, _) =>
               MalformedUriError(uri, sanitized)
           }
-      }
     }
 
   /* ------ Types ------ */
