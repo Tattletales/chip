@@ -23,21 +23,28 @@ import utils.StreamUtils
 import vault.model.Accounts.AccountNotFound
 
 /**
-  * A transaction is split into two events Withdraw and Deposit so the events only relate
-  * to the account of the sender.
+  * A transaction is split into two stages: [[Withdraw]] and [[Deposit]].
   *
-  * The Deposit event depends on the Withdraw through the latter's lsn.
+  * The [[Deposit]] event depends on the [[Withdraw]] through the latter's [[Withdraw.lsn]] - [[Deposit.dependsOn]].
   */
 sealed trait TransactionStage
 
+/**
+  * Initial stage of a transaction.
+  */
 case class Withdraw(from: User, to: User, amount: Money, lsn: Option[Lsn]) extends TransactionStage
 object Withdraw {
 
   /**
     * Set the lsn to None as it is not yet known at construction time.
+    * It will only become available when the [[GossipDaemon]] delivers the event with a lsn.
     */
   def apply(from: User, to: User, amount: Money): Withdraw = Withdraw(from, to, amount, None)
 }
+
+/**
+  * Second and final stage of a transaction. When this stage is processed the transaction is attempted.
+  */
 case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends TransactionStage
 
 object Transactions {
@@ -45,25 +52,25 @@ object Transactions {
   /**
     * Handle the events.
     *
-    * Decodes and reorders the events so they are in a causal order.
-    * ???
+    * Decodes and reorders the transaction stages so they are delivered in a causal order.
+    * Finally, they are processed by the transaction handler.
     */
   def handleTransactionStages[F[_]: Effect](daemon: GossipDaemon[F],
                                             kvs: KVStore[F, User, Money],
                                             accounts: Accounts[F]): Sink[F, Event] =
     _.through(decodeAndCausalOrder(accounts))
       .through(StreamUtils.log("Handling"))
-      .evalMap(handleTransactionStage(daemon, kvs, accounts))
+      .evalMap(processTransactionStage(daemon, kvs, accounts))
 
   /**
-    * Decode and reorder the events so they are in causal order.
+    * Decode and reorder the transaction stages so they are delivered in a causal order.
     */
   def decodeAndCausalOrder[F[_]: Effect, O](
       accounts: Accounts[F]): Pipe[F, Event, TransactionStage] =
     _.through(decode).through(causalOrder(accounts))
 
   /**
-    * Converts Events in AccountsEvents.
+    * Convert [[Event]] into a [[TransactionStage]].
     *
     * Failures:
     *   - [[PayloadDecodingError]] if the [[Event.payload]] cannot be decoded.
@@ -89,8 +96,10 @@ object Transactions {
     _.evalMap(convert)
   }
 
+  // TODO better documentation
   /**
-    * Causal ordering of AccountsEvents.
+    * Causal ordering of [[TransactionStage]]s.
+    *
     * Ignores AccountsEvents that are invalid:
     *   - Deposited and withdrawn amounts do not match.
     *   - Balance is insufficent.
@@ -162,7 +171,7 @@ object Transactions {
   }
 
   /**
-    * Handles a [[TransactionStage]].
+    * Processes a [[TransactionStage]].
     *
     * Withdraw:
     *   Gossip a Deposit if the transfer is for the current user.
@@ -173,10 +182,10 @@ object Transactions {
     *
     * Fails with [[MissingLsnError]] if there is a [[Withdraw]] with [[Withdraw.lsn]] empty.
     */
-  private def handleTransactionStage[F[_]: Functor](
-      daemon: GossipDaemon[F],
-      kvs: KVStore[F, User, Money],
-      accounts: Accounts[F])(event: TransactionStage)(implicit F: Effect[F]): F[Unit] =
+  private def processTransactionStage[F[_]: Functor](daemon: GossipDaemon[F],
+                                                     kvs: KVStore[F, User, Money],
+                                                     accounts: Accounts[F])(
+      event: TransactionStage)(implicit F: MonadError[F, Throwable]): F[Unit] =
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>
         val deposit = daemon.send[TransactionStage](Deposit(from, to, amount, lsn))
