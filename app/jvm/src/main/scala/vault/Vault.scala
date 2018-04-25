@@ -35,18 +35,15 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       for {
         client <- Http1Client.stream()
-        eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
-
-        //db: Database[F] = Database.doobieDatabase[F](xa)
-        kvs = KVStore.mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
-
         httpClient = HttpClient.default(client)
 
         daemon0 = GossipDaemon.default[F](tag[RootTag][String]("http://localhost:59234"))(
-          httpClient,
-          Subscriber.serverSentEvent)
+            httpClient,
+            Subscriber.serverSentEvent)
         daemon = GossipDaemon.logging("test")(daemon0)
 
+        kvs = KVStore.mapKVS[F, User, Money]
+        
         accounts <- Stream.eval(
           Accounts
             .default[F](daemon, kvs)
