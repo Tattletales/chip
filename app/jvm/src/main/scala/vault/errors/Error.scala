@@ -1,7 +1,7 @@
 package vault.errors
 
 import vault.model.Account.{Money, User}
-import backend.errors.Error
+import utils.Error
 import backend.events.Subscriber.Payload
 import vault.events.Withdraw
 

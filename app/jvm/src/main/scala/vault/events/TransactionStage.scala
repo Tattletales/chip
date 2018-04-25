@@ -206,6 +206,4 @@ object Transactions {
                          (to, tag[MoneyTag][Double](currentTo + amount)))
         } yield ()
     }
-
-  /* ------ Errors ------ */
 }

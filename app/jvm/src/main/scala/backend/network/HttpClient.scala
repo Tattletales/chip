@@ -7,6 +7,7 @@ import cats.implicits._
 import io.circe.{Decoder, Encoder, Json}
 import io.circe.generic.auto._
 import io.circe.syntax._
+import org.http4s.MediaType.`application/x-www-form-urlencoded`
 import org.http4s.circe._
 import org.http4s.client.Client
 import org.http4s.headers.`Content-Type`
@@ -45,6 +46,11 @@ trait HttpClient[F[_]] {
     * Post request and ignore the response
     */
   def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit]
+
+  /**
+    * Post a form and ignore the response
+    */
+  def postFormAndIgnore(uri: Uri, form: Map[String, String]): F[Unit]
 }
 
 object HttpClient {
@@ -75,21 +81,37 @@ object HttpClient {
         }
 
       def post[T: Encoder, Response: Decoder](uri: Uri, body: T): F[Response] =
-        client.expect(genPostReq(uri, body.asJson))(jsonOf[F, Response])
+        client.expect(genPostReq(uri, body.asJson.noSpaces))(jsonOf[F, Response])
 
       /**
-        * @see [[HttpClient.postAndIgnore()]]
+        * @see [[HttpClient.postAndIgnore]]
         *
-        * Fails with [[FailedRequestResponse]] if the request failed.
+        * Failures:
+        *   - [[FailedRequestResponse]] if the request failed
+        *   - [[MalformedUriError]] if the `uri` is malformed
         */
-      def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] = {
+      def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] =
+        client.fetch(genPostReq(uri, body.asJson.noSpaces)) {
+          case Status.Successful(_) => F.unit
+          case _                    => F.raiseError(FailedRequestResponse(uri))
+        }
+
+      /**
+        * @see [[HttpClient.postFormAndIgnore]]
+        *
+        * Failures:
+        *   - [[FailedRequestResponse]] if the request failed
+        *   - [[MalformedUriError]] if the `uri` is malformed
+        */
+      def postFormAndIgnore(uri: Uri, form: Map[String, String]): F[Unit] = {
+        val form0 = UrlForm(form.toSeq: _*)
+        val body = UrlForm.encodeString(Charset.`UTF-8`)(form0)
+
         client.fetch(
-          genPostReqNoJSon(uri, body).map(
-            _.withContentType(`Content-Type`(MediaType.`application/x-www-form-urlencoded`)))) {
-          case Status.Successful(_) =>
-            F.unit
-          case _ =>
-            F.raiseError(FailedRequestResponse(uri))
+          genPostReq(uri, body).map(
+            _.withContentType(`Content-Type`(`application/x-www-form-urlencoded`)))) {
+          case Status.Successful(_) => F.unit
+          case _                    => F.raiseError(FailedRequestResponse(uri))
         }
       }
 
@@ -98,27 +120,13 @@ object HttpClient {
         *
         * Fails with [[MalformedUriError]] if the URI is invalid.
         */
-      private def genPostReq[T](uri: Uri, body: Json): F[Request[F]] =
+      private def genPostReq(uri: Uri, body: String): F[Request[F]] =
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
-              Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, Json])
+            Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, String])
           }
           .adaptError {
-            case ParseFailure(sanitized, _) =>
-              MalformedUriError(uri, sanitized)
-          }
-
-      private def genPostReqNoJSon[T](uri: Uri, body: T): F[Request[F]] =
-        F.fromEither(Http4sUri.fromString(uri))
-          .flatMap { uri =>
-            Request()
-              .withMethod(Method.POST)
-              .withUri(uri)
-              .withBody(body.toString)(F, EntityEncoder[F, String])
-          }
-          .adaptError {
-            case ParseFailure(sanitized, _) =>
-              MalformedUriError(uri, sanitized)
+            case ParseFailure(sanitized, _) => MalformedUriError(uri, sanitized)
           }
     }
 

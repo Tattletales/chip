@@ -83,15 +83,13 @@ object GossipDaemon {
         *   - [[SendError]] if the `e` cannot be sent.
         */
       def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] = {
-        val b0 = UrlForm(
-          "t" -> E.eventType.toString,
+        val form = Map(
+          "t" -> E.eventType,
           "d" -> e.asJson.noSpaces
         )
 
-        val body = UrlForm.encodeString(Charset.`UTF-8`)(b0)
-
         httpClient
-          .postAndIgnore(tag[UriTag][String](s"$root"), body)
+          .postFormAndIgnore(tag[UriTag][String](s"$root"), form)
       }
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
@@ -132,7 +130,7 @@ object GossipDaemon {
         * Logs `e`.
         */
       def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
-        log(e) >> daemon.send(e)
+        log(e) *> daemon.send(e)
 
       /**
         * @see [[GossipDaemon.subscribe]]
@@ -147,9 +145,8 @@ object GossipDaemon {
       /**
         * Log `e` to the file at path [[path]]
         */
-      private def log[E](e: E): F[Unit] = {
+      private def log[E](e: E): F[Unit] =
         bw.map(_.write(s"${System.currentTimeMillis()} $e SEND"))
-      }
     }
 
   /**

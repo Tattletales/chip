@@ -2,10 +2,7 @@ package backend.errors
 
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import backend.network.HttpClient.Uri
-
-abstract class Error extends Exception {
-  final override def fillInStackTrace(): Throwable = this
-}
+import utils.Error
 
 /**
   * Daemon related errors
