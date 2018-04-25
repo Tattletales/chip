@@ -49,7 +49,7 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
 
         accounts <- Stream.eval(
           Accounts
-            .mock[F](daemon, kvs)
+            .default[F](daemon, kvs)
             .withAccounts(tag[NodeIdTag][String]("MyOwnKey"),
                           tag[NodeIdTag][String]("alice"),
                           tag[NodeIdTag][String]("bob")))

@@ -117,7 +117,7 @@ object GossipDaemon {
   def logging[F[_]](path: String)(daemon: GossipDaemon[F])(implicit F: Effect[F]): GossipDaemon[F] =
     new GossipDaemon[F] {
       private val file = new File(path)
-      private val bw = F.pure(new BufferedWriter(new FileWriter(file, true)))
+      private val bw = new BufferedWriter(new FileWriter(file, true))
 
       /**
         * @see [[GossipDaemon.getNodeId]]
@@ -129,8 +129,10 @@ object GossipDaemon {
         *
         * Logs `e`.
         */
-      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
-        log(e) *> daemon.send(e)
+      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] = {
+        println("SEND")
+        log(e) >> daemon.send(e)
+      }
 
       /**
         * @see [[GossipDaemon.subscribe]]
@@ -146,7 +148,11 @@ object GossipDaemon {
         * Log `e` to the file at path [[path]]
         */
       private def log[E](e: E): F[Unit] =
-        bw.map(_.write(s"${System.currentTimeMillis()} $e SEND"))
+        F.delay {
+          println(s"WRITING: $e")
+          bw.write(s"${System.currentTimeMillis()} $e SEND")
+          bw.flush()
+        }
     }
 
   /**
