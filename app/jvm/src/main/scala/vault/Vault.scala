@@ -1,5 +1,7 @@
 package vault
 
+import java.io._
+
 import backend.events.Subscriber
 import backend.events.Subscriber.{Event, EventId}
 import cats.effect.{Effect, IO}
@@ -9,7 +11,7 @@ import fs2._
 import backend.gossip.GossipDaemon
 import backend.gossip.model.Node._
 import backend.storage.{Database, KVStore}
-import vault.model.Account.User
+import vault.model.Account.{Money, MoneyTag, User}
 import shapeless.tag
 import org.http4s.circe._
 import vault.events.TransactionStage
@@ -20,8 +22,9 @@ import backend.network.HttpClient
 import backend.network.HttpClient.RootTag
 import org.http4s.client.blaze.Http1Client
 import vault.api.Server
-import vault.model.Account.Money
 import vault.model.Accounts
+import fs2.io._
+import java.nio.file.Paths
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -32,21 +35,21 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       for {
         client <- Http1Client.stream()
-        //eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
+        eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
 
         //db: Database[F] = Database.doobieDatabase[F](xa)
         kvs = KVStore.mapKVS[F, User, Money] //KVStore.dbKVS[F, User, Money](db)
 
         httpClient = HttpClient.default(client)
 
-        daemon = GossipDaemon.default[F](tag[RootTag][String]("http://localhost:59234"))(
+        daemon0 = GossipDaemon.default[F](tag[RootTag][String]("http://localhost:59234"))(
           httpClient,
           Subscriber.serverSentEvent)
-        //daemon = GossipDaemon.mock(eventQueue)
+        daemon = GossipDaemon.logging("test")(daemon0)
 
         accounts <- Stream.eval(
           Accounts
-            .default[F](daemon, kvs)
+            .mock[F](daemon, kvs)
             .withAccounts(tag[NodeIdTag][String]("MyOwnKey"),
                           tag[NodeIdTag][String]("alice"),
                           tag[NodeIdTag][String]("bob")))

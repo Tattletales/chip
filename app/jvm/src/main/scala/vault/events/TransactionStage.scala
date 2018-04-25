@@ -59,7 +59,8 @@ object Transactions {
                                             kvs: KVStore[F, User, Money],
                                             accounts: Accounts[F]): Sink[F, Event] =
     _.through(decodeAndCausalOrder(accounts))
-      .through(StreamUtils.log("Handling"))
+      .through(StreamUtils.log("Delivered"))
+      .through(StreamUtils.logToFile("DELIVERED", "test"))
       .evalMap(processTransactionStage(daemon, kvs, accounts))
 
   /**

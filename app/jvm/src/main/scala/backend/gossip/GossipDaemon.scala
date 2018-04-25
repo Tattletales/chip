@@ -2,6 +2,8 @@ package backend.gossip
 
 import backend.errors.{LogRetrievalError, NodeIdError, SendError}
 import cats.effect.Sync
+import java.io._
+import cats.effect.{Async, Effect, Sync}
 import cats.implicits._
 import cats.{Applicative, ApplicativeError, Monad, MonadError}
 import backend.events.Subscriber._
@@ -109,6 +111,45 @@ object GossipDaemon {
           .adaptError {
             case _ => LogRetrievalError
           }
+    }
+
+  /**
+    * Add logging of sent events.
+    */
+  def logging[F[_]](path: String)(daemon: GossipDaemon[F])(implicit F: Effect[F]): GossipDaemon[F] =
+    new GossipDaemon[F] {
+      private val file = new File(path)
+      private val bw = F.pure(new BufferedWriter(new FileWriter(file, true)))
+
+      /**
+        * @see [[GossipDaemon.getNodeId]]
+        */
+      def getNodeId: F[NodeId] = daemon.getNodeId
+
+      /**
+        * @see [[GossipDaemon.send]]
+        *
+        * Logs `e`.
+        */
+      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
+        log(e) >> daemon.send(e)
+
+      /**
+        * @see [[GossipDaemon.subscribe]]
+        */
+      def subscribe: Stream[F, Event] = daemon.subscribe
+
+      /**
+        * @see [[GossipDaemon.getLog]]
+        */
+      def getLog: F[List[Event]] = daemon.getLog
+
+      /**
+        * Log `e` to the file at path [[path]]
+        */
+      private def log[E](e: E): F[Unit] = {
+        bw.map(_.write(s"${System.currentTimeMillis()} $e SEND"))
+      }
     }
 
   /**
