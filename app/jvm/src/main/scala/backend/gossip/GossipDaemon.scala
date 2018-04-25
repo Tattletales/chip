@@ -1,5 +1,6 @@
 package backend.gossip
 
+import backend.errors.{LogRetrievalError, NodeIdError, SendError}
 import cats.effect.Sync
 import cats.implicits._
 import cats.{Applicative, ApplicativeError, Monad, MonadError}
@@ -127,12 +128,4 @@ object GossipDaemon {
 
       def getLog: F[List[Event]] = F.pure(List.empty)
     }
-
-  /* ------ Errors ------ */
-  sealed trait GossipDeamonError extends Throwable
-  case object NodeIdError extends GossipDeamonError {
-    override def toString: String = "Could not retrieve the node id."
-  }
-  case object SendError extends GossipDeamonError
-  case object LogRetrievalError extends GossipDeamonError
 }

@@ -1,7 +1,7 @@
 package vault.model
 
+import backend.errors.{NodeIdError, SendError}
 import backend.gossip.GossipDaemon
-import backend.gossip.GossipDaemon.{NodeIdError, SendError}
 import backend.storage.KVStore
 import backend.implicits._
 import cats.MonadError
@@ -10,6 +10,7 @@ import cats.implicits._
 import fs2.Stream
 import io.circe.generic.auto._
 import shapeless.tag
+import vault.errors.{AccountNotFound, TransferError, UnknownUser, UnsufficentFunds}
 import vault.events.Transactions.decodeAndCausalOrder
 import vault.events._
 import vault.implicits._
@@ -153,14 +154,4 @@ object Accounts {
       (u, m)
     }
   }
-
-  /* ------ Errors ------ */
-  sealed trait AccountsError extends Throwable
-  case class AccountNotFound(user: User) extends AccountsError {
-    override def toString: String = s"No account for $user."
-  }
-  case class UnsufficentFunds(currentAmount: Money, of: User) extends AccountsError
-  case object UnknownUser extends AccountsError
-  case object TransferError extends AccountsError
-
 }

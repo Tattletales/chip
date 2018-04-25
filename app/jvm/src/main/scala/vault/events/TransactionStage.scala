@@ -20,7 +20,7 @@ import vault.model.Account.{Money, MoneyTag, User}
 import vault.model._
 import doobie.implicits._
 import utils.StreamUtils
-import vault.model.Accounts.AccountNotFound
+import vault.errors.{MissingLsnError, PayloadDecodingError, SenderError}
 
 /**
   * A transaction is split into two stages: [[Withdraw]] and [[Deposit]].
@@ -207,15 +207,4 @@ object Transactions {
     }
 
   /* ------ Errors ------ */
-  sealed trait TransactionStageError extends Throwable
-
-  case class PayloadDecodingError(payload: Payload) extends TransactionStageError {
-    override def toString: String = s"Failed decoding the payload $payload.\n"
-  }
-
-  case class SenderError(m: String) extends TransactionStageError
-
-  case class MissingLsnError(w: Withdraw) extends TransactionStageError {
-    override def toString: String = s"Missing lsn in $w. It should have been added in the decoder."
-  }
 }

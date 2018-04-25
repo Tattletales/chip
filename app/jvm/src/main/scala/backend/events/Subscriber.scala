@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.Sink
+import backend.errors.MalformedSSE
 import backend.events.Subscriber.Event
 import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import cats.ApplicativeError
@@ -75,7 +76,7 @@ object Subscriber {
                   tag[EventTypeTag][String](eventType),
                   tag[PayloadTag][String](sse.data))
 
-          F.fromOption(maybeEvent, MalformedSSE)
+          F.fromOption(maybeEvent, MalformedSSE(sse))
       }
     }
 
@@ -92,8 +93,4 @@ object Subscriber {
   case class Lsn(nodeId: NodeId, eventId: EventId)
 
   case class Event(lsn: Lsn, eventType: EventType, payload: Payload)
-
-  /* ------ Errors ------ */
-  sealed trait SubscriberError extends Throwable
-  case object MalformedSSE extends SubscriberError
 }

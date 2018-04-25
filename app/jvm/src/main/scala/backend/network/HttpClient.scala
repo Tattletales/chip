@@ -1,5 +1,6 @@
 package backend.network
 
+import backend.errors.{FailedRequestResponse, MalformedUriError}
 import backend.network.HttpClient.Uri
 import cats.effect.Sync
 import cats.implicits._
@@ -110,9 +111,4 @@ object HttpClient {
   sealed trait RootTag
   type Root = String @@ RootTag
 
-  /* ------ Errors ------ */
-
-  sealed trait HttpClientError extends Throwable
-  case class MalformedUriError(uri: Uri, m: String) extends HttpClientError
-  case class FailedRequestResponse(uri: Uri) extends HttpClientError
 }
