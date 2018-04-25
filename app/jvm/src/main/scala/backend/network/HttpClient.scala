@@ -9,6 +9,7 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import org.http4s.circe._
 import org.http4s.client.Client
+import org.http4s.headers.`Content-Type`
 import org.http4s.{Uri => Http4sUri, _}
 import shapeless.tag
 import shapeless.tag.@@
@@ -81,14 +82,16 @@ object HttpClient {
         *
         * Fails with [[FailedRequestResponse]] if the request failed.
         */
-      def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] =
-        client.fetch(genPostReqNoJSon(uri, body)) {
+      def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] = {
+        client.fetch(
+          genPostReqNoJSon(uri, body).map(
+            _.withContentType(`Content-Type`(MediaType.`application/x-www-form-urlencoded`)))) {
           case Status.Successful(_) =>
-            println("=============== HOLLY MOLLY ==============="); F.unit
+            F.unit
           case _ =>
-            println("=============== HOLLY MOLLY 2 ===============");
             F.raiseError(FailedRequestResponse(uri))
         }
+      }
 
       /**
         * Generate a POST request.
@@ -98,30 +101,25 @@ object HttpClient {
       private def genPostReq[T](uri: Uri, body: Json): F[Request[F]] =
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
-            val r =
               Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, Json])
-            println(s"\n\n=============== $uri ===============\n\n")
-            println(s"\n\n=============== $body ===============\n\n")
-            println(s"\n\n=============== $r ===============\n\n")
-            r
           }
           .adaptError {
             case ParseFailure(sanitized, _) =>
-              println("=============== GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH ===============")
               MalformedUriError(uri, sanitized)
           }
 
       private def genPostReqNoJSon[T](uri: Uri, body: T): F[Request[F]] =
         F.fromEither(Http4sUri.fromString(uri))
-        .flatMap{ uri =>
-          Request()
-            .withMethod(Method.POST)
-            .withUri(uri)
-            .withBody(body.toString)(F, EntityEncoder[F, String])
-        }.adaptError{
-          case ParseFailure(sanitized, _) =>
-            MalformedUriError(uri, sanitized)
-        }
+          .flatMap { uri =>
+            Request()
+              .withMethod(Method.POST)
+              .withUri(uri)
+              .withBody(body.toString)(F, EntityEncoder[F, String])
+          }
+          .adaptError {
+            case ParseFailure(sanitized, _) =>
+              MalformedUriError(uri, sanitized)
+          }
     }
 
   /* ------ Types ------ */

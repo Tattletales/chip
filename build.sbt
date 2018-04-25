@@ -20,7 +20,7 @@ resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
 resolvers += Resolver.sonatypeRepo("snapshots")
 
 lazy val doobieVersion = "0.5.1"
-lazy val http4sVersion = "0.18.7"
+lazy val http4sVersion = "0.18.9"
 lazy val circeVersion = "0.9.1"
 
 val app = crossProject.settings(
