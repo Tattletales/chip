@@ -4,7 +4,7 @@ import doobie.util.meta.Meta
 import backend.gossip.model.Node.{NodeId, NodeIdTag}
 import cats.Functor
 import io.circe.{Decoder, Encoder}
-import org.http4s.EntityDecoder
+import org.http4s.{EntityDecoder, UrlForm}
 import shapeless.tag
 
 trait implicits {

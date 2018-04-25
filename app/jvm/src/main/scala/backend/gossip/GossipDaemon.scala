@@ -17,10 +17,11 @@ import io.circe.syntax._
 import io.circe.{DecodingFailure, Encoder, Json}
 import backend.network.HttpClient
 import backend.network.HttpClient.{Root, UriTag}
-import org.http4s.{EntityDecoder, EntityEncoder}
+import org.http4s.{Charset, EntityDecoder, EntityEncoder, UrlForm}
 import org.http4s.circe._
 import utils.StreamUtils.log
 import shapeless.tag
+import UrlForm.entityEncoder
 import shapeless.tag.@@
 
 /**
@@ -79,13 +80,17 @@ object GossipDaemon {
         * Failures:
         *   - [[SendError]] if the `e` cannot be sent.
         */
-      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
+      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] = {
+        val b0 = UrlForm(
+          "t" -> E.eventType.toString,
+          "d" -> e.asJson.noSpaces
+        )
+
+        val body = UrlForm.encodeString(Charset.`UTF-8`)(b0)
+
         httpClient
-          .getAndIgnore(
-            tag[UriTag][String](s"$root/gossip?t=${E.eventType.toString}&d=${e.asJson.noSpaces}"))
-          .adaptError {
-            case _ => SendError
-          }
+          .postAndIgnore(tag[UriTag][String](s"$root"), body)
+      }
 
       def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
 

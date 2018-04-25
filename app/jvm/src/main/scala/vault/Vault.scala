@@ -55,7 +55,7 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
 
         server = Server.authed(accounts, daemon).run
 
-        ec <- Stream(handler, server).join(2).drain ++ Stream.emit(ExitCode.Success)
+        ec <- Stream(server, handler).join(1).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 

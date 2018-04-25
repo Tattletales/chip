@@ -82,9 +82,12 @@ object HttpClient {
         * Fails with [[FailedRequestResponse]] if the request failed.
         */
       def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] =
-        client.fetch(genPostReq(uri, body.asJson)) {
-          case Status.Successful(_) => F.unit
-          case _                    => F.raiseError(FailedRequestResponse(uri))
+        client.fetch(genPostReqNoJSon(uri, body)) {
+          case Status.Successful(_) =>
+            println("=============== HOLLY MOLLY ==============="); F.unit
+          case _ =>
+            println("=============== HOLLY MOLLY 2 ===============");
+            F.raiseError(FailedRequestResponse(uri))
         }
 
       /**
@@ -95,12 +98,30 @@ object HttpClient {
       private def genPostReq[T](uri: Uri, body: Json): F[Request[F]] =
         F.fromEither(Http4sUri.fromString(uri))
           .flatMap { uri =>
-            Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, Json])
+            val r =
+              Request(method = Method.POST, uri = uri).withBody(body)(F, EntityEncoder[F, Json])
+            println(s"\n\n=============== $uri ===============\n\n")
+            println(s"\n\n=============== $body ===============\n\n")
+            println(s"\n\n=============== $r ===============\n\n")
+            r
           }
           .adaptError {
             case ParseFailure(sanitized, _) =>
+              println("=============== GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH ===============")
               MalformedUriError(uri, sanitized)
           }
+
+      private def genPostReqNoJSon[T](uri: Uri, body: T): F[Request[F]] =
+        F.fromEither(Http4sUri.fromString(uri))
+        .flatMap{ uri =>
+          Request()
+            .withMethod(Method.POST)
+            .withUri(uri)
+            .withBody(body.toString)(F, EntityEncoder[F, String])
+        }.adaptError{
+          case ParseFailure(sanitized, _) =>
+            MalformedUriError(uri, sanitized)
+        }
     }
 
   /* ------ Types ------ */
