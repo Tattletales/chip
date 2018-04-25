@@ -68,6 +68,8 @@ val app = crossProject.settings(
     "com.github.mpilquist" %% "simulacrum" % "0.12.0",
     "org.webjars" % "bootstrap" % "3.2.0",
     "org.reactormonk" %% "cryptobits" % "1.1",
+    "ch.qos.logback" % "logback-classic" % "1.2.3",
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
   )
 )
 
