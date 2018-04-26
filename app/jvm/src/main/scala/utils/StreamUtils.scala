@@ -15,7 +15,7 @@ object StreamUtils {
     val bw = new BufferedWriter(new FileWriter(file, true))
 
     _.evalMap { a =>
-      F.delay { bw.write(s"${System.currentTimeMillis()} $a $postfix"); a }
+      F.delay { bw.write(s"${System.currentTimeMillis()} $a $postfix\n"); bw.flush(); a }
     }
   }
 }

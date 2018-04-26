@@ -149,8 +149,7 @@ object GossipDaemon {
         */
       private def log[E](e: E): F[Unit] =
         F.delay {
-          println(s"WRITING: $e")
-          bw.write(s"${System.currentTimeMillis()} $e SEND")
+          bw.write(s"${System.currentTimeMillis()} $e SEND\n")
           bw.flush()
         }
     }
