@@ -1,6 +1,6 @@
 package vault.events
 
-import cats.{Functor, Monad, MonadError}
+import cats.{Applicative, Functor, Monad, MonadError}
 import cats.effect.Effect
 import cats.implicits._
 import backend.events.EventTyper
@@ -51,17 +51,21 @@ object Transactions {
 
   /**
     * Handle the events.
+    * 
+    * The `next` function can be used to specify what to do after the
+    * transaction has succeeded.
     *
     * Decodes and reorders the transaction stages so they are delivered in a causal order.
     * Finally, they are processed by the transaction handler.
     */
-  def handleTransactionStages[F[_]: Effect](daemon: GossipDaemon[F],
-                                            kvs: KVStore[F, User, Money],
-                                            accounts: Accounts[F]): Sink[F, Event] =
+  def handleTransactionStages[F[_]: Effect](next: Deposit => F[Unit])(
+      daemon: GossipDaemon[F],
+      kvs: KVStore[F, User, Money],
+      accounts: Accounts[F]): Sink[F, Event] =
     _.through(decodeAndCausalOrder(accounts))
       .through(StreamUtils.log("Delivered"))
       .through(StreamUtils.logToFile("DELIVERED", "test"))
-      .evalMap(processTransactionStage(daemon, kvs, accounts))
+      .evalMap(processTransactionStage(daemon, kvs, accounts)(next))
 
   /**
     * Decode and reorder the transaction stages so they are delivered in a causal order.
@@ -121,11 +125,10 @@ object Transactions {
               case d @ Deposit(from, _, depositedAmount, dependsOn) =>
                 val handleDeposit = withdrawn.get(dependsOn) match {
                   case Some(withdrawnAmount) =>
-                    if (depositedAmount == withdrawnAmount) {
+                    if (depositedAmount == withdrawnAmount)
                       Pull.output1(d) >> go(es, accounts, waitingFor, withdrawn - dependsOn)
-                    } else {
+                    else
                       go(es, accounts, waitingFor, withdrawn) // Ignore, transaction is faulty.
-                    }
                   case None =>
                     // Wait for the related Withdrawn to be arrive.
                     go(es, accounts, waitingFor + (dependsOn -> d), withdrawn)
@@ -139,16 +142,15 @@ object Transactions {
               case w @ Withdraw(from, _, withdrawnAmount, Some(lsn)) =>
                 val handleWithdraw = waitingFor.get(lsn) match {
                   case Some(deposit) =>
-                    if (deposit.amount == withdrawnAmount) {
+                    if (deposit.amount == withdrawnAmount)
                       Pull.output1(w) >> Pull
                         .output1(deposit) >> go(es,
                                                 accounts,
                                                 waitingFor - lsn,
                                                 withdrawn + (lsn -> withdrawnAmount))
-                    } else {
+                    else
                       // Ignore, transaction is faulty.
                       go(es, accounts, waitingFor - lsn, withdrawn)
-                    }
                   case None =>
                     // Output the Withdraw and note how much it has withdrawn in order
                     // to check if the related Deposit is valid.
@@ -174,6 +176,9 @@ object Transactions {
   /**
     * Processes a [[TransactionStage]].
     *
+    * The `next` function can be used to specify what to do after the
+    * transaction has succeeded.
+    *
     * Withdraw:
     *   Gossip a Deposit if the transfer is for the current user.
     *
@@ -183,10 +188,11 @@ object Transactions {
     *
     * Fails with [[MissingLsnError]] if there is a [[Withdraw]] with [[Withdraw.lsn]] empty.
     */
-  private def processTransactionStage[F[_]: Functor](daemon: GossipDaemon[F],
-                                                     kvs: KVStore[F, User, Money],
-                                                     accounts: Accounts[F])(
-      event: TransactionStage)(implicit F: MonadError[F, Throwable]): F[Unit] =
+  private def processTransactionStage[F[_]: Functor](
+      daemon: GossipDaemon[F],
+      kvs: KVStore[F, User, Money],
+      accounts: Accounts[F])(next: Deposit => F[Unit])(event: TransactionStage)(
+      implicit F: MonadError[F, Throwable]): F[Unit] =
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>
         val deposit = daemon.send[TransactionStage](Deposit(from, to, amount, lsn))
@@ -195,7 +201,7 @@ object Transactions {
 
       case w @ Withdraw(_, _, _, None) => F.raiseError(MissingLsnError(w))
 
-      case Deposit(from, to, amount, _) =>
+      case d @ Deposit(from, to, amount, _) =>
         // Transfer the money. Succeeds only if both succeeded.
         for {
           currentFrom <- accounts.balance(from)
@@ -204,6 +210,8 @@ object Transactions {
 
           _ <- kvs.put_*((from, tag[MoneyTag][Double](currentFrom - amount)),
                          (to, tag[MoneyTag][Double](currentTo + amount)))
+
+          _ <- next(d)
         } yield ()
     }
 }

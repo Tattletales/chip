@@ -26,6 +26,8 @@ import vault.model.Accounts
 import fs2.io._
 import java.nio.file.Paths
 
+import cats.Applicative
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object VaultApp extends Vault[IO]
@@ -51,11 +53,11 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
                           tag[NodeIdTag][String]("alice"),
                           tag[NodeIdTag][String]("bob")))
 
-        handler = daemon.subscribe.through(handleTransactionStages(daemon, kvs, accounts))
+        handler = daemon.subscribe.through(handleTransactionStages(_ => implicitly[Applicative[F]].unit)(daemon, kvs, accounts))
 
         server = Server.authed(accounts, daemon).run
 
-        ec <- Stream(server, handler).join(1).drain ++ Stream.emit(ExitCode.Success)
+        ec <- Stream(server, handler).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 
