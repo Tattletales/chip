@@ -53,7 +53,7 @@ val app = crossProject.settings(
     "org.tpolecat" %% "doobie-core" % "0.5.2",
     "org.tpolecat" %% "doobie-specs2" % "0.5.2",
     "org.tpolecat" %% "doobie-postgres" % "0.5.2",
-    "co.fs2" %% "fs2-core" % "0.10.3",
+    "co.fs2" %% "fs2-core" % "0.10.4",
     "org.http4s" %% "http4s-dsl" % http4sVersion,
     "org.http4s" %% "http4s-blaze-server" % http4sVersion,
     "org.http4s" %% "http4s-blaze-client" % http4sVersion,
