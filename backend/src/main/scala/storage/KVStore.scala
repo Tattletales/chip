@@ -17,6 +17,7 @@ trait KVStore[F[_], K, V] {
   def get(k: K): F[Option[V]]
   def put(k: K, v: V): F[Unit]
   def put_*(kv: (K, V), kvs: (K, V)*): F[Unit]
+  def keys: F[Set[K]]
   def remove(k: K): F[Unit]
 }
 
@@ -39,6 +40,8 @@ object KVStore {
 
       def put_*(x: (K, V), xs: (K, V)*): F[Unit] =
         db.insert(update(x._1, x._2), xs.map { case (k, v) => update(k, v) }: _*)
+
+      def keys: F[Set[K]] = ???
 
       def remove(k: K): F[Unit] = db.insert(sql"DELETE FROM kv_store WHERE key = $k")
 
@@ -69,6 +72,8 @@ object KVStore {
           case (k, v) => map.put(k, v)
         }
       }
+
+    def keys: F[Set[K]] = F.delay(map.keySet.toSet)
 
     def remove(k: K): F[Unit] = F.delay(map.remove(k))
   }
