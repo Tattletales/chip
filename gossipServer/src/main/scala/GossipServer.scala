@@ -40,17 +40,17 @@ object GossipServer {
             _ <- eventIds(tag[NodeIdTag][String](nodeId)).modify(_ + 1)
             eventType = data.values.get("t").map(_.head).get
             event = data.values.get("d").map(_.head).get
-          } yield ServerSentEvent(event, Some(eventType), Some(EventId(eventId.toString)))
+          } yield ServerSentEvent(event, Some(eventType), Some(EventId(s"$nodeId-$eventId")))
 
           def addToLogs(sse: ServerSentEvent): IO[Unit] =
             logs.keys.flatMap(_.toList.traverse(addToLog(_, sse)) *> IO.unit)
 
           def addToQueues(sse: ServerSentEvent): IO[Unit] =
             eventQueues.values.toList
-              .traverse(_.enqueue1(sse)) *> IO.unit
+              .traverse(q => {println(s"\n==== ADDING sse : ${sse}"); q.enqueue1(sse)}) *> IO.unit
 
           // Run both in parallel
-          Ok(sse.flatMap(sse => (addToLogs(sse), addToQueues(sse)).mapN((_, _) => ())))
+          Ok(sse.flatMap(sse => (addToLogs(sse), addToQueues(sse)).mapN((_, _) => println(sse))))
         }
     }
 

@@ -37,7 +37,8 @@ trait Server[F[_]] extends Http4sDsl[F] {
 
 object Server {
   def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]]](accounts: Accounts[F],
-                                                         daemon: GossipDaemon[F]): Server[F] =
+                                                         daemon: GossipDaemon[F],
+                                                         port: Option[Int] = None): Server[F] =
     new Server[F] {
       private val amountFieldId = "amount-input-id"
       private val beneficiaryFieldId = "beneficiary-input-id"
@@ -226,8 +227,10 @@ object Server {
       }
 
       val run: Stream[F, ExitCode] = {
+        val p = port.getOrElse(8080)
+
         BlazeBuilder[F]
-          .bindHttp(8080, "localhost")
+          .bindHttp(p, "localhost")
           .mountService(service, "/")
           .serve
       }

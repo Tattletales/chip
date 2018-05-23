@@ -17,8 +17,7 @@ object MainApp extends Main
 class Main extends StreamApp[IO] {
   override def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = {
     val nodes = args(0).toInt
-    args.slice(1, 1 + nodes).foreach(println)
-    val nodeNames = args.slice(1, nodes).map(tag[NodeIdTag][String])
+    val nodeNames = args.slice(1, 1 + nodes).map(tag[NodeIdTag][String])
 
     val eventQueues = nodeNames
       .traverse(_ => async.unboundedQueue[IO, ServerSentEvent])

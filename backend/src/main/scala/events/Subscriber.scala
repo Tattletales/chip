@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.sse.ServerSentEvent
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, ThrottleMode}
 import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.Sink
 import backend.errors.MalformedSSE
@@ -17,6 +17,7 @@ import fs2.interop.reactivestreams._
 import fs2.{Pipe, Stream}
 import shapeless.tag.@@
 import shapeless.tag
+import scala.concurrent.duration._
 
 import scala.concurrent.ExecutionContext
 
@@ -52,10 +53,16 @@ object Subscriber {
       def subscribe(uri: String): Stream[F, Event] = {
         val eventSource = EventSource(Uri(uri), (a: HttpRequest) => Http().singleRequest(a), None)
 
+        eventSource.throttle(20, 500.milliseconds, 20, ThrottleMode.Shaping)
+          .runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
+          .toStream[F]
+          .through(convert)
+        /*
         eventSource
           .runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
           .toStream[F]
           .through(convert)
+          */
       }
 
       /**

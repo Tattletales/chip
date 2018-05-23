@@ -35,6 +35,11 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       val nodes = args.headOption.map(_.toInt)
       val nodeIds = nodes.map(ns => args.slice(1, 1 + ns).map(tag[NodeIdTag][String])).get
+      val frontend_port = nodes.map {ns =>
+        if (args.length > ns + 1)
+          args(ns + 1)
+        else "8080"
+      }.map(_.toInt)
 
       for {
         client <- Http1Client.stream()
@@ -55,7 +60,7 @@ class Vault[F[_]: Effect] extends StreamApp[F] {
         handler = daemon.subscribe.through(
           handleTransactionStages(_ => implicitly[Applicative[F]].unit)(daemon, kvs, accounts))
 
-        server = Server.authed(accounts, daemon).run
+        server = Server.authed(accounts, daemon, frontend_port).run
 
         ec <- Stream(server, handler).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec

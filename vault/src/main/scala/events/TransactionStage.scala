@@ -85,22 +85,25 @@ object Transactions {
     */
   private def decode[F[_]](
       implicit F: MonadError[F, Throwable]): Pipe[F, Event, TransactionStage] = {
-    def convert(e: Event): F[TransactionStage] =
+    def convert(e: Event): F[TransactionStage] = {
       for {
         event <- F.fromEither(circeDecode[TransactionStage](e.payload)).adaptError {
           case _ => PayloadDecodingError(e.payload)
         }
 
         convertedEvent <- event match {
-          case d @ Deposit(from, _, _, _) if e.lsn.nodeId == from => F.pure(d)
+          case d @ Deposit(_, to, _, _) if e.lsn.nodeId == to => F.pure(d)
           case Withdraw(from, to, amount, _) if e.lsn.nodeId == from =>
             F.pure(Withdraw(from, to, amount, Some(e.lsn)))
-          case e =>
-            F.raiseError(SenderError(s"Wrong sender for event: $e"))
+          case err =>
+            println(s"event = $event e = $err lsn = ${e.lsn}")
+            F.raiseError(SenderError(s"Wrong sender for event: $err"))
         }
       } yield convertedEvent
+    }
 
     _.evalMap(convert)
+
   }
 
   // TODO better documentation

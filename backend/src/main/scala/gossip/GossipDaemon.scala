@@ -93,8 +93,10 @@ object GossipDaemon {
           "d" -> e.asJson.noSpaces
         )
 
-        httpClient
-          .postFormAndIgnore(tag[UriTag][String](s"$root/gossip"), form)
+        for {
+          n <- getNodeId
+          _ <- httpClient.postFormAndIgnore(tag[UriTag][String](s"$root/gossip/$n"), form)
+        } yield ()
       }
 
       def subscribe: Stream[F, Event] =
