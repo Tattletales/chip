@@ -1,4 +1,4 @@
-name := "vault"
+name := "gossipServer"
 
 version := "0.1"
 

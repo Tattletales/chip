@@ -58,8 +58,9 @@ object GossipDaemon {
   /**
     * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
     */
-  def default[F[_]](root: Root)(httpClient: HttpClient[F], subscriber: Subscriber[F])(
-      implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
+  def default[F[_]](root: Root, nodeId: Option[NodeId] = None)(
+      httpClient: HttpClient[F],
+      subscriber: Subscriber[F])(implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
     new GossipDaemon[F] {
 
       /**
@@ -68,13 +69,17 @@ object GossipDaemon {
         * Failures:
         *   - [[NodeIdError]] if the node id cannot be retrieved.
         */
-      def getNodeId: F[NodeId] =
-        httpClient
-          .getRaw(tag[UriTag][String](s"$root/unique"))
-          .map(tag[NodeIdTag][String])
-          .adaptError {
-            case _ => NodeIdError
-          }
+      def getNodeId: F[NodeId] = nodeId match {
+        case Some(nodeId) => F.pure(nodeId)
+        case None =>
+          httpClient
+            .getRaw(tag[UriTag][String](s"$root/unique"))
+            .map(tag[NodeIdTag][String])
+            .adaptError {
+              case _ => NodeIdError
+            }
+
+      }
 
       /**
         * @see [[GossipDaemon.send]]
@@ -89,10 +94,11 @@ object GossipDaemon {
         )
 
         httpClient
-          .postFormAndIgnore(tag[UriTag][String](s"$root"), form)
+          .postFormAndIgnore(tag[UriTag][String](s"$root/gossip"), form)
       }
 
-      def subscribe: Stream[F, Event] = subscriber.subscribe(s"$root/events")
+      def subscribe: Stream[F, Event] =
+        Stream.force(getNodeId.map(nodeId => subscriber.subscribe(s"$root/events/$nodeId")))
 
       /**
         * @see [[GossipDaemon.getLog]]
