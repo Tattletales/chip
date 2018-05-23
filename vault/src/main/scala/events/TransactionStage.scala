@@ -190,11 +190,21 @@ object Transactions {
     *
     * Fails with [[MissingLsnError]] if there is a [[Withdraw]] with [[Withdraw.lsn]] empty.
     */
-  private def processTransactionStage[F[_]: Functor](
-      daemon: GossipDaemon[F],
-      kvs: KVStore[F, User, Money],
-      accounts: Accounts[F])(next: Deposit => F[Unit])(event: TransactionStage)(
-      implicit F: MonadError[F, Throwable]): F[Unit] =
+  private def processTransactionStage[F[_]](daemon: GossipDaemon[F],
+                                            kvs: KVStore[F, User, Money],
+                                            accounts: Accounts[F])(next: Deposit => F[Unit])(
+      event: TransactionStage)(implicit F: MonadError[F, Throwable]): F[Unit] = {
+
+    /**
+      *
+      */
+    def transfer(from: User, to: User, amount: Money): F[Unit] =
+      (accounts.balance(from), accounts.balance(to)).mapN {
+        case (currentFrom, currentTo) =>
+          kvs.put_*((from, tag[MoneyTag][Double](currentFrom - amount)),
+                    (to, tag[MoneyTag][Double](currentTo + amount)))
+      }.flatten
+
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>
         val deposit = daemon.send[TransactionStage](Deposit(from, to, amount, lsn))
@@ -204,16 +214,7 @@ object Transactions {
       case w @ Withdraw(_, _, _, None) => F.raiseError(MissingLsnError(w))
 
       case d @ Deposit(from, to, amount, _) =>
-        // Transfer the money. Succeeds only if both succeeded.
-        for {
-          currentFrom <- accounts.balance(from)
-
-          currentTo <- accounts.balance(to)
-
-          _ <- kvs.put_*((from, tag[MoneyTag][Double](currentFrom - amount)),
-                         (to, tag[MoneyTag][Double](currentTo + amount)))
-
-          _ <- next(d)
-        } yield ()
+        transfer(from, to, amount) >> next(d)
     }
+  }
 }
