@@ -2,7 +2,7 @@ package vault
 
 import backend.events.Subscriber
 import backend.events.Subscriber.{Event, EventId}
-import cats.effect.{Effect, IO}
+import cats.effect.{Effect, IO, Timer}
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
 import fs2._
@@ -25,29 +25,38 @@ import fs2.io._
 import java.nio.file.Paths
 
 import cats.Applicative
+import network.WebSocketClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object VaultApp extends Vault[IO]
 
-class Vault[F[_]: Effect] extends StreamApp[F] {
+class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       val nodes = args.headOption.map(_.toInt)
       val nodeIds = nodes.map(ns => args.slice(1, 1 + ns).map(tag[NodeIdTag][String])).get
-      val frontend_port = nodes.map {ns =>
-        if (args.length > ns + 1)
-          args(ns + 1)
-        else "8080"
-      }.map(_.toInt)
+      val frontend_port = nodes
+        .map { ns =>
+          if (args.length > ns + 1)
+            args(ns + 1)
+          else "8080"
+        }
+        .map(_.toInt)
 
       for {
         client <- Http1Client.stream()
         httpClient = HttpClient.default(client)
 
-        daemon0 = GossipDaemon.default[F](
-          tag[RootTag][String]("http://localhost:59234"),
-          nodeIds.headOption)(httpClient, Subscriber.serverSentEvent)
+        incoming <- Stream.eval(async.unboundedQueue[F, String])
+        outgoing <- Stream.eval(async.unboundedQueue[F, String])
+        wsClient = WebSocketClient.default("ws://localhost:59234")(incoming, outgoing)
+
+        //daemon0 = GossipDaemon.default[F](
+        //  tag[RootTag][String]("http://localhost:59234"),
+        //  nodeIds.headOption)(httpClient, Subscriber.serverSentEvent)
+        daemon0 = GossipDaemon.webSocket(tag[RootTag][String]("http://localhost:59234"),
+                                         nodeIds.headOption)(httpClient, wsClient)
         daemon = GossipDaemon.logging("test")(daemon0)
 
         kvs = KVStore.mapKVS[F, User, Money]

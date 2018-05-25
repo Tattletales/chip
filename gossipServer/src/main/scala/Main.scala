@@ -5,12 +5,13 @@ import backend.storage.KVStore
 import cats.effect.IO
 import cats.implicits._
 import fs2.StreamApp.ExitCode
-import fs2.{Stream, StreamApp, async}
+import fs2.{Scheduler, Stream, StreamApp, async}
 import org.http4s.ServerSentEvent
 import org.http4s.server.blaze.BlazeBuilder
 import shapeless.tag
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 
 object MainApp extends Main
 
@@ -31,13 +32,15 @@ class Main extends StreamApp[IO] {
       eventQueues <- Stream.eval(eventQueues)
       eventIds <- Stream.eval(eventIds)
       store = KVStore.mapKVS[IO, NodeId, List[ServerSentEvent]]
+      _ <- Stream.eval(nodeNames.traverse(store.put(_, List.empty)))
       service = GossipServer.default(nodeNames)(eventQueues, eventIds, store).service
 
       server <- BlazeBuilder[IO]
+        .withIdleTimeout(Duration.Inf)
         .bindHttp(59234, "localhost")
         .mountService(service, "/")
         .serve
     } yield server
-
   }
+
 }

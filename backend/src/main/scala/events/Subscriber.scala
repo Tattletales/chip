@@ -1,6 +1,7 @@
 package backend.events
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.settings.ConnectionPoolSettings
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.sse.ServerSentEvent
@@ -10,15 +11,22 @@ import akka.stream.scaladsl.Sink
 import backend.errors.MalformedSSE
 import backend.events.Subscriber.Event
 import backend.gossip.Node.{NodeId, NodeIdTag}
+import backend.implicits._
 import cats.ApplicativeError
 import cats.effect.Effect
 import cats.implicits._
+import fs2.async.mutable.Queue
+import io.circe.generic.auto._
+import io.circe.parser.decode
+import io.circe.syntax._
+import io.circe.{DecodingFailure, Encoder, Json}
 import fs2.interop.reactivestreams._
 import fs2.{Pipe, Stream}
+import network.WebSocketClient
 import shapeless.tag.@@
 import shapeless.tag
-import scala.concurrent.duration._
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 
 /**
@@ -51,18 +59,19 @@ object Subscriber {
         *   - [[MalformedSSE]] TODO documentation
         */
       def subscribe(uri: String): Stream[F, Event] = {
-        val eventSource = EventSource(Uri(uri), (a: HttpRequest) => Http().singleRequest(a), None)
+        val eventSource = EventSource(
+          Uri(uri),
+          (a: HttpRequest) =>
+            Http().singleRequest(a,
+                                 settings =
+                                   ConnectionPoolSettings(system).withIdleTimeout(Duration.Inf)),
+          None)
 
-        eventSource.throttle(20, 500.milliseconds, 20, ThrottleMode.Shaping)
-          .runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
-          .toStream[F]
-          .through(convert)
-        /*
         eventSource
           .runWith(Sink.asPublisher[ServerSentEvent](fanout = false))
           .toStream[F]
           .through(convert)
-          */
+
       }
 
       /**
@@ -85,6 +94,19 @@ object Subscriber {
 
           F.fromOption(maybeEvent, MalformedSSE(sse))
       }
+    }
+
+  def webSocket[F[_]](ws: WebSocketClient[F])(implicit F: Effect[F]): Subscriber[F] =
+    new Subscriber[F] {
+
+      /**
+        * Subscribe to the event stream
+        */
+      def subscribe(uri: String): Stream[F, Event] =
+        for {
+          wsMessage <- ws.receive
+          event <- Stream.eval(F.fromEither(Json.fromString(wsMessage).as[Event]))
+        } yield event
     }
 
   /* ------ Types ------ */

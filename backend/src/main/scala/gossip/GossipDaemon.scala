@@ -3,6 +3,7 @@ package backend.gossip
 import backend.errors.{LogRetrievalError, NodeIdError, SendError}
 import cats.effect.Sync
 import java.io._
+
 import cats.effect.{Async, Effect, Sync}
 import cats.implicits._
 import cats.{Applicative, ApplicativeError, Monad, MonadError}
@@ -24,6 +25,7 @@ import org.http4s.circe._
 import utils.StreamUtils.log
 import shapeless.tag
 import UrlForm.entityEncoder
+import network.WebSocketClient
 import shapeless.tag.@@
 
 /**
@@ -101,6 +103,64 @@ object GossipDaemon {
 
       def subscribe: Stream[F, Event] =
         Stream.force(getNodeId.map(nodeId => subscriber.subscribe(s"$root/events/$nodeId")))
+
+      /**
+        * @see [[GossipDaemon.getLog]]
+        *
+        * Failures:
+        *   - [[LogRetrievalError]] if the log cannot be retrieved.
+        */
+      def getLog: F[List[Event]] =
+        httpClient
+          .get[Json](tag[UriTag][String](s"$root/log"))
+          .flatMap { json =>
+            F.fromEither(json.as[List[Event]])
+          }
+          .adaptError {
+            case _ => LogRetrievalError
+          }
+    }
+
+  /**
+    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
+    */
+  def webSocket[F[_]](root: Root, nodeId: Option[NodeId] = None)(
+      httpClient: HttpClient[F],
+      ws: WebSocketClient[F])(implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
+    new GossipDaemon[F] {
+
+      /**
+        * @see [[GossipDaemon.getNodeId]]
+        *
+        * Failures:
+        *   - [[NodeIdError]] if the node id cannot be retrieved.
+        */
+      def getNodeId: F[NodeId] = nodeId match {
+        case Some(nodeId) => F.pure(nodeId)
+        case None =>
+          httpClient
+            .getRaw(tag[UriTag][String](s"$root/unique"))
+            .map(tag[NodeIdTag][String])
+            .adaptError {
+              case _ => NodeIdError
+            }
+
+      }
+
+      /**
+        * @see [[GossipDaemon.send]]
+        *
+        * Failures:
+        *   - [[SendError]] if the `e` cannot be sent.
+        */
+      def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
+        ws.send(e.asJson.noSpaces)
+
+      def subscribe: Stream[F, Event] =
+        for {
+          wsMessage <- ws.receive
+          event <- Stream.eval(F.fromEither(Json.fromString(wsMessage).as[Event]))
+        } yield event
 
       /**
         * @see [[GossipDaemon.getLog]]
