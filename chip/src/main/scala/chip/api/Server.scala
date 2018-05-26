@@ -38,9 +38,9 @@ trait Server[F[_]] extends Http4sDsl[F] {
 }
 
 object Server {
-  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]]](users: Users[F],
-                                                         tweets: Tweets[F],
-                                                         daemon: GossipDaemon[F]): Server[F] =
+  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](users: Users[F],
+                                                            tweets: Tweets[F],
+                                                            daemon: GossipDaemon[F, E]): Server[F] =
     new Server[F] {
       private val key = PrivateKey(
         scala.io.Codec.toUTF8(scala.util.Random.alphanumeric.take(20).mkString("")))
@@ -81,7 +81,7 @@ object Server {
             id <- daemon.getNodeId
             user <- users.getUser(id).flatMap {
               case Some(user) => implicitly[Applicative[F]].pure(user)
-              case None => users.addUser(tag[UsernameTag][String](userName))
+              case None       => users.addUser(tag[UsernameTag][String](userName))
             }
             message = crypto.signToken(user.id, clock.millis.toString)
             response <- Ok("Logged in!".asJson)

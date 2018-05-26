@@ -21,6 +21,8 @@ import cats.data.OptionT
 import vault.model.Account.{Money, MoneyTag, User}
 import vault.model._
 import doobie.implicits._
+import gossip.Gossipable
+import gossip.Gossipable.ops._
 import utils.StreamUtils
 import vault.errors.{MissingLsnError, PayloadDecodingError, SenderError}
 
@@ -60,10 +62,10 @@ object Transactions {
     * Decodes and reorders the transaction stages so they are delivered in a causal order.
     * Finally, they are processed by the transaction handler.
     */
-  def handleTransactionStages[F[_]: Effect](next: Deposit => F[Unit])(
-      daemon: GossipDaemon[F],
+  def handleTransactionStages[F[_]: Effect, E: Gossipable](next: Deposit => F[Unit])(
+      daemon: GossipDaemon[F, E],
       kvs: KVStore[F, User, Money],
-      accounts: Accounts[F]): Sink[F, Event] =
+      accounts: Accounts[F]): Sink[F, E] =
     _.through(decodeAndCausalOrder(accounts))
       .through(StreamUtils.log("Delivered"))
       .through(StreamUtils.logToFile("DELIVERED", "test"))
@@ -72,20 +74,19 @@ object Transactions {
   /**
     * Decode and reorder the transaction stages so they are delivered in a causal order.
     */
-  def decodeAndCausalOrder[F[_]: Effect, O](
-      accounts: Accounts[F]): Pipe[F, Event, TransactionStage] =
+  def decodeAndCausalOrder[F[_]: Effect, E: Gossipable](accounts: Accounts[F]): Pipe[F, E, TransactionStage] =
     _.through(decode).through(causalOrder(accounts))
 
   /**
-    * Convert [[Event]] into a [[TransactionStage]].
+    * Convert [[WSEvent]] into a [[TransactionStage]].
     *
     * Failures:
-    *   - [[PayloadDecodingError]] if the [[Event.payload]] cannot be decoded.
+    *   - [[PayloadDecodingError]] if the [[WSEvent.payload]] cannot be decoded.
     *   - [[SenderError]] if there is a mismatch in the sender of event and the actual sender.
     */
-  private def decode[F[_]](
-      implicit F: MonadError[F, Throwable]): Pipe[F, Event, TransactionStage] = {
-    def convert(e: Event): F[TransactionStage] = {
+  private def decode[F[_], E: Gossipable](
+      implicit F: MonadError[F, Throwable]): Pipe[F, E, TransactionStage] = {
+    def convert(e: E): F[TransactionStage] =
       for {
         event <- F.fromEither(circeDecode[TransactionStage](e.payload)).adaptError {
           case _ => PayloadDecodingError(e.payload)
@@ -100,7 +101,6 @@ object Transactions {
             F.raiseError(SenderError(s"Wrong sender for event: $err"))
         }
       } yield convertedEvent
-    }
 
     _.evalMap(convert)
 
@@ -193,9 +193,9 @@ object Transactions {
     *
     * Fails with [[MissingLsnError]] if there is a [[Withdraw]] with [[Withdraw.lsn]] empty.
     */
-  private def processTransactionStage[F[_]](daemon: GossipDaemon[F],
-                                            kvs: KVStore[F, User, Money],
-                                            accounts: Accounts[F])(next: Deposit => F[Unit])(
+  private def processTransactionStage[F[_], E](daemon: GossipDaemon[F, E],
+                                               kvs: KVStore[F, User, Money],
+                                               accounts: Accounts[F])(next: Deposit => F[Unit])(
       event: TransactionStage)(implicit F: MonadError[F, Throwable]): F[Unit] = {
 
     /**

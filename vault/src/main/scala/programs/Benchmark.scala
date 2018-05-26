@@ -6,6 +6,7 @@ import cats.Applicative
 import cats.effect.Effect
 import cats.implicits._
 import fs2._
+import gossip.Gossipable
 import shapeless.tag
 import vault.events.Deposit
 import vault.events.Transactions.handleTransactionStages
@@ -20,10 +21,10 @@ object Benchmark {
   /**
     * The head of `users` sends money to each user, one by one after the previous transaction has succeeded.
     */
-  def loneSender[F[_]: Effect](users: Vector[User])(
+  def loneSender[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val start = Stream.eval {
         daemon.getNodeId
@@ -53,10 +54,10 @@ object Benchmark {
     * Infinitely transfer money to the other users. The order is random but each
     * user will receive transactions one after each other.
     */
-  def random[F[_]: Effect](users: List[User])(
+  def random[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val benchmark = for {
         me <- Stream.eval(daemon.getNodeId)
@@ -79,10 +80,10 @@ object Benchmark {
     * Infinitely transfer at the user after itself in the list.
     * When the transaction succeeds, transfer money to the next user, and so on...
     */
-  def localRoundRobin[F[_]: Effect](users: Vector[User])(
+  def localRoundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val start = Stream.eval(for {
         me <- daemon.getNodeId
@@ -109,10 +110,10 @@ object Benchmark {
   /**
     * Infinitely transfer money from one user to the other.
     */
-  def roundRobin[F[_]: Effect](users: Vector[User])(
+  def roundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val start = Stream.eval {
         daemon.getNodeId

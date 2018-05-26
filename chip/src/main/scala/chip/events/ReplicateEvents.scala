@@ -2,18 +2,19 @@ package chip.events
 
 import cats.effect.Effect
 import cats.implicits._
-import backend.events.EventTyper
-import backend.events.Subscriber.{Event, EventType}
+import backend.events.{EventTypable, EventTyper}
+import backend.events.Subscriber.{EventType, WSEvent}
 import io.circe.Decoder
 import io.circe.parser.decode
 import shapeless.{::, HList, HNil}
 import simulacrum._
 import backend.storage.Database
+import gossip.Gossipable
 
 /**
   * DSL for the replication of events to a [[Database]]
   */
-trait ReplicateEvents[E] {
+trait ReplicateEvents[E, Event] {
   def replicate[F[_]](db: Database[F])(event: Event)(implicit F: Effect[F]): F[Unit]
 }
 
@@ -22,21 +23,24 @@ trait ReplicateEvents[E] {
   * Source: https://youtu.be/Nm4OIhjjA2o
   */
 object ReplicateEvents {
-  implicit val baseCase: ReplicateEvents[HNil] = new ReplicateEvents[HNil] {
+  implicit def baseCase[Event]: ReplicateEvents[HNil, Event] = new ReplicateEvents[HNil, Event] {
     def replicate[F[_]](db: Database[F])(event: Event)(implicit F: Effect[F]): F[Unit] = F.unit
   }
 
-  implicit def inductionStep[E, Es <: HList](implicit head: EventTyper[E],
-                                             decoder: Decoder[E],
-                                             replicable: Replicable[E],
-                                             tail: ReplicateEvents[Es]): ReplicateEvents[E :: Es] =
-    new ReplicateEvents[E :: Es] {
+  implicit def inductionStep[E, Es <: HList, Event: EventTypable: Gossipable](
+      implicit head: EventTyper[E],
+      decoder: Decoder[E],
+      replicable: Replicable[E],
+      tail: ReplicateEvents[Es, Event]): ReplicateEvents[E :: Es, Event] =
+    new ReplicateEvents[E :: Es, Event] {
+      import EventTypable.ops._
+      import Gossipable.ops._
+
       def replicate[F[_]](db: Database[F])(event: Event)(implicit F: Effect[F]): F[Unit] =
         if (event.eventType == head.eventType) {
           F.fromEither(decode[E](event.payload))
             .flatMap(replicable.replicate(db))
         } else tail.replicate(db)(event)
-
     }
 }
 

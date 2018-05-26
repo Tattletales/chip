@@ -8,6 +8,7 @@ import cats.MonadError
 import cats.effect.Effect
 import cats.implicits._
 import fs2.Stream
+import gossip.Gossipable
 import io.circe.generic.auto._
 import shapeless.tag
 import vault.errors.{AccountNotFound, TransferError, UnknownUser, UnsufficentFunds}
@@ -49,7 +50,7 @@ object Accounts {
   /**
     * Interpreter to [[GossipDaemon]] and [[KVStore]] DSLs.
     */
-  def default[F[_]](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
+  def default[F[_], E: Gossipable](daemon: GossipDaemon[F, E], kvs: KVStore[F, User, Money])(
       implicit F: Effect[F]): Accounts[F] =
     new Accounts[F] {
 
@@ -61,7 +62,7 @@ object Accounts {
         *   - [[UnknownUser]] if the current user cannot be determined.
         *   - [[TransferError]] if the transfer cannot be initialized.
         */
-      def transfer(to: User, amount: Money): F[Unit] = 
+      def transfer(to: User, amount: Money): F[Unit] =
         for {
           from <- daemon.getNodeId.adaptError { case NodeIdError => UnknownUser }
 
@@ -112,7 +113,7 @@ object Accounts {
       }
     }
 
-  def mock[F[_]](daemon: GossipDaemon[F], kvs: KVStore[F, User, Money])(
+  def mock[F[_], E](daemon: GossipDaemon[F, E], kvs: KVStore[F, User, Money])(
       implicit F: MonadError[F, Throwable]): Accounts[F] = new Accounts[F] {
 
     /**

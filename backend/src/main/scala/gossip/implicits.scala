@@ -20,5 +20,4 @@ trait implicits {
   implicit def nodeIdEntityDecoder[F[_]: Functor](
       implicit D: EntityDecoder[F, String]): EntityDecoder[F, NodeId] =
     D.map(tag[NodeIdTag][String])
-
 }

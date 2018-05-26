@@ -16,6 +16,7 @@ import shapeless.tag
 import backend.events.EventTyper
 import chip.implicits._
 import backend.implicits._
+import gossip.Gossipable
 
 /**
   * Tweets DSL
@@ -33,9 +34,9 @@ object Tweets {
     * Interpreter to the [[Database]] and [[GossipDaemon]] DSLs.
     * Replicates the events.
     */
-  def replicated[F[_]: Monad: EntityDecoder[?[_], String]](
+  def replicated[F[_]: Monad: EntityDecoder[?[_], String], E: Gossipable](
       db: Database[F],
-      daemon: GossipDaemon[F]
+      daemon: GossipDaemon[F, E]
   ): Tweets[F] = new Tweets[F] {
 
     def getTweets(user: User): F[List[Tweet]] =

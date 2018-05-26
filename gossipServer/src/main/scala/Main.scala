@@ -33,7 +33,7 @@ class Main extends StreamApp[IO] {
       eventIds <- Stream.eval(eventIds)
       store = KVStore.mapKVS[IO, NodeId, List[ServerSentEvent]]
       _ <- Stream.eval(nodeNames.traverse(store.put(_, List.empty)))
-      service = GossipServer.default(nodeNames)(eventQueues, eventIds, store).service
+      service = GossipServer.serverSentEvent(nodeNames)(eventQueues, eventIds, store).service
 
       server <- BlazeBuilder[IO]
         .withIdleTimeout(Duration.Inf)

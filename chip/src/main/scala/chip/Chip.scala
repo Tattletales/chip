@@ -1,6 +1,6 @@
 package chip
 
-import backend.events.Subscriber.{Event, EventId}
+import backend.events.Subscriber.{EventId, SSEvent, WSEvent}
 import cats.effect.{Effect, IO}
 import chip.api.Server
 import chip.events.Replicator
@@ -22,16 +22,16 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
       for {
-        eventQueue <- Stream.eval(async.unboundedQueue[F, Event])
+        eventQueue <- Stream.eval(async.unboundedQueue[F, SSEvent])
 
         db: Database[F] = Database.doobieDatabase[F](xa)
 
-        daemon = GossipDaemon.mock[F](eventQueue)
+        daemon = GossipDaemon.sseMock[F](eventQueue)
 
-        users = Users.replicated[F](db, daemon)
-        tweets = Tweets.replicated[F](db, daemon)
+        users = Users.replicated[F, SSEvent](db, daemon)
+        tweets = Tweets.replicated[F, SSEvent](db, daemon)
 
-        replicator = Replicator[F](db, daemon.subscribe)
+        replicator = Replicator[F, SSEvent](db, daemon.subscribe)
 
         server = Server.authed(users, tweets, daemon).run
 

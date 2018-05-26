@@ -16,6 +16,7 @@ import chip.implicits._
 import backend.events.EventTyper
 import io.circe.generic.auto._
 import backend.implicits._
+import gossip.Gossipable
 
 /**
   * Users DSL
@@ -34,9 +35,9 @@ object Users {
     *
     * Replicates the events.
     */
-  def replicated[F[_]: Monad: EntityDecoder[?[_], String]](
+  def replicated[F[_]: Monad: EntityDecoder[?[_], String], E: Gossipable](
       db: Database[F],
-      daemon: GossipDaemon[F]
+      daemon: GossipDaemon[F, E]
   ): Users[F] = new Users[F] {
     def addUser(name: Username): F[User] =
       for {

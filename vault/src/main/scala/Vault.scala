@@ -1,7 +1,7 @@
 package vault
 
 import backend.events.Subscriber
-import backend.events.Subscriber.{Event, EventId}
+import backend.events.Subscriber.{EventId, WSEvent}
 import cats.effect.{Effect, IO, Timer}
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
@@ -50,20 +50,21 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
 
         incoming <- Stream.eval(async.unboundedQueue[F, String])
         outgoing <- Stream.eval(async.unboundedQueue[F, String])
-        wsClient = WebSocketClient.default("ws://localhost:59234")(incoming, outgoing)
+        wsClient = WebSocketClient.default(s"ws://localhost:59234/events/${nodeIds.head}")(incoming,
+                                                                                           outgoing)
 
         //daemon0 = GossipDaemon.default[F](
         //  tag[RootTag][String]("http://localhost:59234"),
         //  nodeIds.headOption)(httpClient, Subscriber.serverSentEvent)
-        daemon0 = GossipDaemon.webSocket(tag[RootTag][String]("http://localhost:59234"),
+        daemon0 = GossipDaemon.webSocket(tag[RootTag][String](s"http://localhost:59234"),
                                          nodeIds.headOption)(httpClient, wsClient)
-        daemon = GossipDaemon.logging("test")(daemon0)
+        daemon = GossipDaemon.logging[F, WSEvent]("test")(daemon0)
 
         kvs = KVStore.mapKVS[F, User, Money]
 
         accounts <- Stream.eval(
           Accounts
-            .default[F](daemon, kvs)
+            .default[F, WSEvent](daemon, kvs)
             .withAccounts(nodeIds.head, nodeIds.tail: _*))
 
         handler = daemon.subscribe.through(

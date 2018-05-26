@@ -30,8 +30,10 @@ import shapeless.tag.@@
 
 /**
   * Gossip daemon DSL
+  *
+  * E is the type of the gossiped events.
   */
-trait GossipDaemon[F[_]] {
+trait GossipDaemon[F[_], E] {
 
   /**
     * The unique id of the current node
@@ -44,26 +46,30 @@ trait GossipDaemon[F[_]] {
   def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit]
 
   /**
-    * Subscribe to the events [[Event]] sent by the daemon.
+    * Subscribe to the events [[WSEvent]] sent by the daemon.
     */
-  def subscribe: Stream[F, Event] // TODO should be val? no need to create new stream for every call
+  def subscribe: Stream[F, E] // TODO should be val? no need to create new stream for every call
 
   /**
     * Get all the events from the daemon's log.
     */
-  def getLog: F[List[Event]]
+  def getLog: F[List[E]]
 }
 
 object GossipDaemon {
+  case class Event(eventType: EventType, payload: Payload)
+
   /* ------ Interpreters ------*/
 
   /**
-    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
+    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs with
+    * events gossiped using ServerSentEvents.
     */
-  def default[F[_]](root: Root, nodeId: Option[NodeId] = None)(
+  def serverSentEvent[F[_]](root: Root, nodeId: Option[NodeId] = None)(
       httpClient: HttpClient[F],
-      subscriber: Subscriber[F])(implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
-    new GossipDaemon[F] {
+      subscriber: Subscriber[F, SSEvent])(
+      implicit F: MonadError[F, Throwable]): GossipDaemon[F, SSEvent] =
+    new GossipDaemon[F, SSEvent] {
 
       /**
         * @see [[GossipDaemon.getNodeId]]
@@ -101,7 +107,7 @@ object GossipDaemon {
         } yield ()
       }
 
-      def subscribe: Stream[F, Event] =
+      def subscribe: Stream[F, SSEvent] =
         Stream.force(getNodeId.map(nodeId => subscriber.subscribe(s"$root/events/$nodeId")))
 
       /**
@@ -110,11 +116,11 @@ object GossipDaemon {
         * Failures:
         *   - [[LogRetrievalError]] if the log cannot be retrieved.
         */
-      def getLog: F[List[Event]] =
+      def getLog: F[List[SSEvent]] =
         httpClient
           .get[Json](tag[UriTag][String](s"$root/log"))
           .flatMap { json =>
-            F.fromEither(json.as[List[Event]])
+            F.fromEither(json.as[List[SSEvent]])
           }
           .adaptError {
             case _ => LogRetrievalError
@@ -122,12 +128,13 @@ object GossipDaemon {
     }
 
   /**
-    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs.
+    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs with events
+    * gossiped using WebSockets.
     */
   def webSocket[F[_]](root: Root, nodeId: Option[NodeId] = None)(
       httpClient: HttpClient[F],
-      ws: WebSocketClient[F])(implicit F: MonadError[F, Throwable]): GossipDaemon[F] =
-    new GossipDaemon[F] {
+      ws: WebSocketClient[F])(implicit F: MonadError[F, Throwable]): GossipDaemon[F, WSEvent] =
+    new GossipDaemon[F, WSEvent] {
 
       /**
         * @see [[GossipDaemon.getNodeId]]
@@ -154,12 +161,12 @@ object GossipDaemon {
         *   - [[SendError]] if the `e` cannot be sent.
         */
       def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
-        ws.send(e.asJson.noSpaces)
+        ws.send(tag[PayloadTag][String](e.asJson.noSpaces))
 
-      def subscribe: Stream[F, Event] =
+      def subscribe: Stream[F, WSEvent] =
         for {
           wsMessage <- ws.receive
-          event <- Stream.eval(F.fromEither(Json.fromString(wsMessage).as[Event]))
+          event <- Stream.eval(F.fromEither(Json.fromString(wsMessage).as[WSEvent]))
         } yield event
 
       /**
@@ -168,11 +175,11 @@ object GossipDaemon {
         * Failures:
         *   - [[LogRetrievalError]] if the log cannot be retrieved.
         */
-      def getLog: F[List[Event]] =
+      def getLog: F[List[WSEvent]] =
         httpClient
           .get[Json](tag[UriTag][String](s"$root/log"))
           .flatMap { json =>
-            F.fromEither(json.as[List[Event]])
+            F.fromEither(json.as[List[WSEvent]])
           }
           .adaptError {
             case _ => LogRetrievalError
@@ -182,8 +189,9 @@ object GossipDaemon {
   /**
     * Add logging of sent events.
     */
-  def logging[F[_]](path: String)(daemon: GossipDaemon[F])(implicit F: Effect[F]): GossipDaemon[F] =
-    new GossipDaemon[F] {
+  def logging[F[_], E](path: String)(daemon: GossipDaemon[F, E])(
+      implicit F: Effect[F]): GossipDaemon[F, E] =
+    new GossipDaemon[F, E] {
       private val file = new File(path)
       private val bw = new BufferedWriter(new FileWriter(file, true))
 
@@ -205,12 +213,12 @@ object GossipDaemon {
       /**
         * @see [[GossipDaemon.subscribe]]
         */
-      def subscribe: Stream[F, Event] = daemon.subscribe
+      def subscribe: Stream[F, E] = daemon.subscribe
 
       /**
         * @see [[GossipDaemon.getLog]]
         */
-      def getLog: F[List[Event]] = daemon.getLog
+      def getLog: F[List[E]] = daemon.getLog
 
       /**
         * Log `e` to the file at path [[path]]
@@ -225,23 +233,23 @@ object GossipDaemon {
   /**
     * Interprets to `FS2` queues.
     *
-    * Mock version of the [[GossipDaemon]].
+    * Mock version of the [[GossipDaemon]] using ServerSentEvents.
     *
     * Will always yield the same node id and simply echoes back the events.
     * [[GossipDaemon.getLog]] will never return a result.
     */
-  def mock[F[_]](eventQueue: Queue[F, Event])(implicit F: Sync[F]): GossipDaemon[F] =
-    new GossipDaemon[F] {
+  def sseMock[F[_]](eventQueue: Queue[F, SSEvent])(implicit F: Sync[F]): GossipDaemon[F, SSEvent] =
+    new GossipDaemon[F, SSEvent] {
       def getNodeId: F[NodeId] = F.pure(tag[NodeIdTag][String]("MyOwnKey"))
 
       def send[E: Encoder](e: E)(implicit E: EventTyper[E]): F[Unit] =
         eventQueue.enqueue1(
-          Event(Lsn(tag[NodeIdTag][String]("MyOwnKey"), tag[EventIdTag][Int](123)),
-                E.eventType,
-                tag[PayloadTag][String](e.asJson.noSpaces)))
+          SSEvent(Lsn(tag[NodeIdTag][String]("MyOwnKey"), tag[EventIdTag][Int](123)),
+                  E.eventType,
+                  tag[PayloadTag][String](e.asJson.noSpaces)))
 
-      def subscribe: Stream[F, Event] = eventQueue.dequeue.through(log("New event"))
+      def subscribe: Stream[F, SSEvent] = eventQueue.dequeue.through(log("New event"))
 
-      def getLog: F[List[Event]] = F.pure(List.empty)
+      def getLog: F[List[SSEvent]] = F.pure(List.empty)
     }
 }
