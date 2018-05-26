@@ -20,8 +20,9 @@ trait WebSocketClient[F[_]] {
 }
 
 object WebSocketClient {
-  def default[F[_]: Timer: Effect](uri: String)(incomingQueue: Queue[F, String],
-                           outgoingQueue: Queue[F, String]): WebSocketClient[F] =
+  def default[F[_]: Timer: Effect](uri: String)(
+      incomingQueue: Queue[F, String],
+      outgoingQueue: Queue[F, String]): WebSocketClient[F] =
     new WebSocketClient[F] {
       implicit val system = ActorSystem()
       implicit val materializer = ActorMaterializer()
@@ -36,7 +37,8 @@ object WebSocketClient {
       }.toSink)
 
       private val outgoing: AkkaSource[Message, NotUsed] =
-        AkkaSource.fromGraph(outgoingQueue.dequeue.map(TextMessage.Strict).toSource)
+        AkkaSource
+          .fromGraph(outgoingQueue.dequeue.map(TextMessage.Strict).toSource)
 
       private val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(uri))
 
