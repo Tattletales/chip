@@ -10,7 +10,8 @@ lazy val commonSettings = Seq(
     "-language:higherKinds",
     "-language:existentials",
     "-language:postfixOps",
-    "-Ypartial-unification"
+    "-Ypartial-unification",
+    "-target:jvm-1.8"
   )
 )
 

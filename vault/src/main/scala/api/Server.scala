@@ -231,6 +231,7 @@ object Server {
 
         BlazeBuilder[F]
           .bindHttp(p, "localhost")
+          .withWebSockets(true)
           .mountService(service, "/")
           .serve
       }

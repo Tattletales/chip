@@ -166,7 +166,7 @@ object GossipDaemon {
       def subscribe: Stream[F, WSEvent] =
         for {
           wsMessage <- ws.receive
-          event <- Stream.eval(F.fromEither(Json.fromString(wsMessage).as[WSEvent]))
+          event <- Stream.eval(F.fromEither(decode[WSEvent](wsMessage)))
         } yield event
 
       /**

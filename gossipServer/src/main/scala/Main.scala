@@ -1,11 +1,13 @@
 package gossipServer
 
+import backend.events.Subscriber.WSEvent
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.storage.KVStore
 import cats.effect.IO
 import cats.implicits._
 import fs2.StreamApp.ExitCode
 import fs2.{Scheduler, Stream, StreamApp, async}
+import io.circe.Json
 import org.http4s.ServerSentEvent
 import org.http4s.server.blaze.BlazeBuilder
 import shapeless.tag
@@ -21,7 +23,7 @@ class Main extends StreamApp[IO] {
     val nodeNames = args.slice(1, 1 + nodes).map(tag[NodeIdTag][String])
 
     val eventQueues = nodeNames
-      .traverse(_ => async.unboundedQueue[IO, ServerSentEvent])
+      .traverse(_ => async.unboundedQueue[IO, WSEvent])
       .map(nodeNames.zip(_).toMap)
 
     val eventIds = nodeNames
@@ -31,12 +33,13 @@ class Main extends StreamApp[IO] {
     for {
       eventQueues <- Stream.eval(eventQueues)
       eventIds <- Stream.eval(eventIds)
-      store = KVStore.mapKVS[IO, NodeId, List[ServerSentEvent]]
+      store = KVStore.mapKVS[IO, NodeId, List[WSEvent]]
       _ <- Stream.eval(nodeNames.traverse(store.put(_, List.empty)))
-      service = GossipServer.serverSentEvent(nodeNames)(eventQueues, eventIds, store).service
+      service = GossipServer.webSocket(nodeNames)(eventQueues, eventIds, store).service
 
       server <- BlazeBuilder[IO]
         .withIdleTimeout(Duration.Inf)
+        .withWebSockets(true)
         .bindHttp(59234, "localhost")
         .mountService(service, "/")
         .serve
