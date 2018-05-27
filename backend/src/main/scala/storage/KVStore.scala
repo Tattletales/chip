@@ -41,7 +41,10 @@ object KVStore {
       def put_*(x: (K, V), xs: (K, V)*): F[Unit] =
         db.insert(update(x._1, x._2), xs.map { case (k, v) => update(k, v) }: _*)
 
-      def keys: F[Set[K]] = ???
+      def keys: F[Set[K]] = db.query[K](sql"""
+             SELECT key
+             FROM kv_store
+           """).map(_.toSet)
 
       def remove(k: K): F[Unit] = db.insert(sql"DELETE FROM kv_store WHERE key = $k")
 
