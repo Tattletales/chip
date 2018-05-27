@@ -28,7 +28,7 @@ object KVStore {
   /**
     * Interpreter to a [[Database]]
     */
-  def dbKVS[F[_]: Functor, K: Meta, V: Composite: Meta](db: Database[F]): KVStore[F, K, V] =
+  def database[F[_]: Functor, K: Meta, V: Composite: Meta](db: Database[F]): KVStore[F, K, V] =
     new KVStore[F, K, V] {
       def get(k: K): F[Option[V]] = db.query(sql"""
            SELECT value
@@ -62,8 +62,8 @@ object KVStore {
     * are suspended/delayed in `F` so they do not escape
     * `F` and can be sequenced appropriately.
     */
-  def mapKVS[F[_], K, V](implicit F: Sync[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
-    val map = mutable.HashMap.empty[K, V]
+  def mutableMap[F[_], K, V](implicit F: Sync[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
+    val map = mutable.Map.empty[K, V]
 
     def get(k: K): F[Option[V]] = F.delay(map.get(k))
 
