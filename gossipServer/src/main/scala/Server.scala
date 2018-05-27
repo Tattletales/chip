@@ -1,14 +1,12 @@
 package gossipServer
 
-import backend.events.Subscriber.WSEvent
+import backend.events.WSEvent
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.storage.KVStore
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import fs2.StreamApp.ExitCode
-import fs2.{Scheduler, Stream, StreamApp, async}
-import io.circe.Json
-import org.http4s.ServerSentEvent
+import fs2.{Stream, StreamApp, async}
 import org.http4s.server.blaze.BlazeBuilder
 import shapeless.tag
 

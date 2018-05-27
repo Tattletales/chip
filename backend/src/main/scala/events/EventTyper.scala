@@ -1,6 +1,6 @@
 package backend.events
 
-import backend.events.Subscriber.EventType
+import backend.events.Event.EventType
 import simulacrum._
 
 /**

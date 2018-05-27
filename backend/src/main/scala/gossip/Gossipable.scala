@@ -1,6 +1,6 @@
-package gossip
+package backend.gossip
 
-import backend.events.Subscriber.{Lsn, Payload}
+import backend.events.Event.{Lsn, Payload}
 import simulacrum._
 
 /**

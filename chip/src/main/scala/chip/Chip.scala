@@ -1,6 +1,6 @@
 package chip
 
-import backend.events.Subscriber.SSEvent
+import backend.events.SSEvent
 import backend.gossip.GossipDaemon
 import backend.storage.Database
 import cats.effect.{Effect, IO}
@@ -17,7 +17,6 @@ import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
 import fs2._
 import org.http4s.circe._
-import shapeless.tag
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -29,7 +28,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
       for {
         eventQueue <- Stream.eval(async.unboundedQueue[F, SSEvent])
 
-        db: Database[F] = Database.doobieDatabase[F](xa)
+        db: Database[F] = Database.doobie[F](xa)
         
         daemon = GossipDaemon.sseMock[F, ChipEvent](eventQueue)
 

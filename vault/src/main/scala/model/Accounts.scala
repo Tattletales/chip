@@ -3,18 +3,15 @@ package vault.model
 import backend.errors.{NodeIdError, SendError}
 import backend.gossip.GossipDaemon
 import backend.storage.KVStore
-import backend.implicits._
 import cats.MonadError
 import cats.effect.Effect
 import cats.implicits._
 import fs2.Stream
-import gossip.Gossipable
-import io.circe.generic.auto._
+import backend.gossip.Gossipable
 import shapeless.tag
 import vault.errors.{AccountNotFound, TransferError, UnknownUser, UnsufficentFunds}
 import vault.events.Transactions.decodeAndCausalOrder
 import vault.events._
-import vault.implicits._
 import vault.model.Account._
 
 /**

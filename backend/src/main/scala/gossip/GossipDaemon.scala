@@ -3,9 +3,9 @@ package backend.gossip
 import java.io._
 
 import backend.errors.{LogRetrievalError, NodeIdError, SendError}
+import backend.events.Event._
 import backend.implicits._
-import backend.events.Subscriber._
-import backend.events.{EventTyper, Subscriber}
+import backend.events.{EventTyper, SSEvent, Subscription, WSEvent}
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.network.HttpClient
 import backend.network.HttpClient.{Root, UriTag}
@@ -57,13 +57,13 @@ object GossipDaemon {
   /* ------ Interpreters ------*/
 
   /**
-    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs with
+    * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with
     * events gossiped using ServerSentEvents.
     */
   def serverSentEvent[F[_], E: Encoder](root: Root, nodeId: Option[NodeId] = None)(
       httpClient: HttpClient[F],
-      subscriber: Subscriber[F, SSEvent])(implicit F: MonadError[F, Throwable],
-                                          E: EventTyper[E]): GossipDaemon[F, E, SSEvent] =
+      subscriber: Subscription[F, SSEvent])(implicit F: MonadError[F, Throwable],
+                                            E: EventTyper[E]): GossipDaemon[F, E, SSEvent] =
     new GossipDaemon[F, E, SSEvent] {
 
       /**
@@ -123,7 +123,7 @@ object GossipDaemon {
     }
 
   /**
-    * Interpret to the [[HttpClient]] and [[Subscriber]] DSLs with events
+    * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with events
     * gossiped using WebSockets.
     */
   def webSocket[F[_], E: Encoder](root: Root, nodeId: Option[NodeId] = None)(

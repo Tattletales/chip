@@ -1,14 +1,10 @@
 package vault.events
 
-import cats.{Applicative, Functor, Monad, MonadError}
+import backend.events.Event.Lsn
+import cats.{Monad, MonadError}
 import cats.effect.Effect
 import cats.implicits._
-import cats.syntax.parallel._
-import cats.instances.list._
-import backend.events.EventTyper
-import backend.events.Subscriber._
 import backend.gossip.GossipDaemon
-import backend.gossip.Node.NodeId
 import shapeless.tag
 import fs2.{Pipe, Pull, Sink, Stream}
 import fs2.Stream.InvariantOps
@@ -17,12 +13,10 @@ import io.circe.parser.{decode => circeDecode}
 import vault.implicits._
 import backend.implicits._
 import backend.storage.KVStore
-import cats.data.OptionT
 import vault.model.Account.{Money, MoneyTag, User}
 import vault.model._
-import doobie.implicits._
-import gossip.Gossipable
-import gossip.Gossipable.ops._
+import backend.gossip.Gossipable
+import backend.gossip.Gossipable.ops._
 import utils.StreamUtils
 import vault.errors.{MissingLsnError, PayloadDecodingError, SenderError}
 
@@ -79,10 +73,10 @@ object Transactions {
     _.through(decode).through(causalOrder(accounts))
 
   /**
-    * Convert [[WSEvent]] into a [[TransactionStage]].
+    * Convert E into a [[TransactionStage]].
     *
     * Failures:
-    *   - [[PayloadDecodingError]] if the [[WSEvent.payload]] cannot be decoded.
+    *   - [[PayloadDecodingError]] if the payload cannot be decoded.
     *   - [[SenderError]] if there is a mismatch in the sender of event and the actual sender.
     */
   private def decode[F[_], E: Gossipable](

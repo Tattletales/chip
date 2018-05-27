@@ -1,7 +1,6 @@
 package vault
 
-import backend.events.Subscriber
-import backend.events.Subscriber.{EventId, WSEvent}
+import backend.events.WSEvent
 import cats.effect.{Effect, IO, Timer}
 import doobie.util.transactor.Transactor
 import io.circe.generic.auto._
@@ -9,7 +8,7 @@ import fs2.StreamApp.ExitCode
 import fs2._
 import backend.gossip.GossipDaemon
 import backend.gossip.Node._
-import backend.storage.{Database, KVStore}
+import backend.storage.KVStore
 import vault.model.Account.{Money, User}
 import shapeless.tag
 import org.http4s.circe._
@@ -22,12 +21,9 @@ import backend.network.HttpClient.RootTag
 import org.http4s.client.blaze.Http1Client
 import vault.api.Server
 import vault.model.Accounts
-import fs2.io._
-import java.nio.file.Paths
 
 import cats.Applicative
 import network.WebSocketClient
-import vault.programs.Benchmark
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -54,10 +50,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         outgoing <- Stream.eval(async.unboundedQueue[F, String])
         wsClient = WebSocketClient.akkaHttp[F, TransactionStage, WSEvent](
           s"ws://localhost:59234/events/${nodeIds.head}")(incoming, outgoing)
-
-        //daemon0 = GossipDaemon.default[F](
-        //  tag[RootTag][String]("http://localhost:59234"),
-        //  nodeIds.headOption)(httpClient, Subscriber.serverSentEvent)
+        
         daemon0 = GossipDaemon.webSocket[F, TransactionStage](
           tag[RootTag][String](s"http://localhost:59234"),
           nodeIds.headOption)(httpClient, wsClient)

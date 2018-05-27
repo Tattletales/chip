@@ -1,29 +1,19 @@
 package vault.api
 
 import java.io.File
-import java.time._
 
-import cats.Applicative
-import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
 import fs2.Stream
 import fs2.StreamApp.ExitCode
-import backend.implicits._
 import backend.gossip.GossipDaemon
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import io.circe._
-import io.circe.generic.auto._
-import io.circe.syntax._
-import org.http4s.CacheDirective._
 import org.http4s.MediaType._
 import org.http4s._
-import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{Cookie => _, _}
-import org.http4s.server.AuthMiddleware
 import org.http4s.server.blaze.BlazeBuilder
-import org.reactormonk.{CryptoBits, PrivateKey}
 import shapeless.tag
 import scalatags.Text.all.{body, form, _}
 import vault.events.TransactionStage

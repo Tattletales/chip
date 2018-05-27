@@ -1,7 +1,7 @@
 package chip.model
 
+import backend.events.Event.{EventType, EventTypeTag}
 import backend.events.EventTyper
-import backend.events.Subscriber.{EventType, EventTypeTag}
 import chip.model.TweetsEvents.TweetsEvent
 import chip.model.UsersEvents.UsersEvent
 import io.circe.Encoder

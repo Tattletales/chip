@@ -1,11 +1,9 @@
 package vault.model
 
+import backend.events.Event.{EventType, EventTypeTag}
 import backend.events.EventTyper
-import backend.events.Subscriber.{EventType, EventTypeTag}
-import cats.Functor
 import doobie.util.meta.Meta
 import io.circe.{Decoder, Encoder}
-import org.http4s.{Entity, EntityDecoder}
 import shapeless.tag
 import vault.events.TransactionStage
 import vault.model.Account._

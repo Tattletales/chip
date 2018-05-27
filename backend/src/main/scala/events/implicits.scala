@@ -1,14 +1,6 @@
 package backend.events
 
-import backend.events.Subscriber.{
-  EventId,
-  EventIdTag,
-  EventType,
-  EventTypeTag,
-  Payload,
-  PayloadTag
-}
-import backend.gossip.Node.{NodeId, NodeIdTag}
+import backend.events.Event._
 import cats.Functor
 import io.circe.{Decoder, Encoder}
 import org.http4s.EntityDecoder

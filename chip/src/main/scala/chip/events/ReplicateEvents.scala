@@ -3,13 +3,12 @@ package chip.events
 import cats.effect.Effect
 import cats.implicits._
 import backend.events.{EventTypable, EventTyper}
-import backend.events.Subscriber.{EventType, WSEvent}
 import io.circe.Decoder
 import io.circe.parser.decode
 import shapeless.{::, HList, HNil}
 import simulacrum._
 import backend.storage.Database
-import gossip.Gossipable
+import backend.gossip.Gossipable
 
 /**
   * DSL for the replication of events to a [[Database]]

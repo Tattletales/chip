@@ -4,15 +4,13 @@ import backend.errors.{FailedRequestResponse, MalformedUriError}
 import backend.network.HttpClient.Uri
 import cats.effect.Sync
 import cats.implicits._
-import io.circe.{Decoder, Encoder, Json}
-import io.circe.generic.auto._
+import io.circe.{Decoder, Encoder}
 import io.circe.syntax._
 import org.http4s.MediaType.`application/x-www-form-urlencoded`
 import org.http4s.circe._
 import org.http4s.client.Client
 import org.http4s.headers.`Content-Type`
 import org.http4s.{Uri => Http4sUri, _}
-import shapeless.tag
 import shapeless.tag.@@
 
 /**

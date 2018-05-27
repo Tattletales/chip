@@ -41,7 +41,7 @@ object Database {
   /**
     * Interpreter to `Doobie`
     */
-  def doobieDatabase[F[_]: MonadError[?[_], Throwable]](xa: Transactor[F]): Database[F] =
+  def doobie[F[_]: MonadError[?[_], Throwable]](xa: Transactor[F]): Database[F] =
     new Database[F] {
       def query[R: Composite](q: Fragment): F[List[R]] =
         q.query[R].to[List].transact(xa)

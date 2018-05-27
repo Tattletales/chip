@@ -6,7 +6,7 @@ import cats.Applicative
 import cats.effect.Effect
 import cats.implicits._
 import fs2._
-import gossip.Gossipable
+import backend.gossip.Gossipable
 import shapeless.tag
 import vault.events.{Deposit, TransactionStage}
 import vault.events.Transactions.handleTransactionStages

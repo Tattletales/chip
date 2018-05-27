@@ -1,10 +1,10 @@
 package chip.model
 
+import backend.events.Event.{EventType, EventTypeTag}
 import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
 import doobie.implicits._
-import backend.events.Subscriber.{EventType, EventTypeTag}
 import chip.events.Replicable
 import chip.model.User.{UserId, Username}
 import chip.model.UsersEvents.{AddUser, UsersEvent}
@@ -17,7 +17,7 @@ import backend.events.EventTyper
 import io.circe.generic.semiauto._
 import io.circe.generic.auto._
 import backend.implicits._
-import gossip.Gossipable
+import backend.gossip.Gossipable
 import io.circe.Encoder
 
 /**

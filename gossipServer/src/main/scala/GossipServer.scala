@@ -1,13 +1,13 @@
 package gossipServer
 
-import backend.events.Subscriber.{EventIdTag, Lsn, PayloadTag, WSEvent}
+import backend.events.Event.{EventIdTag, Lsn, PayloadTag}
+import backend.events.WSEvent
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.implicits._
 import cats.effect._
 import cats.implicits._
 import org.http4s._
 import org.http4s.dsl.io._
-import org.http4s.implicits._
 import backend.storage.KVStore
 import fs2.{Pipe, Sink}
 import fs2.async.Ref
@@ -18,9 +18,6 @@ import io.circe.generic.auto._
 import org.http4s.ServerSentEvent.EventId
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebsocketBits.{Text, WebSocketFrame}
-
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
 
 sealed trait GossipServer[F[_], O] {
   def service: HttpService[F]
