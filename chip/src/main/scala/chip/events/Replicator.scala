@@ -18,11 +18,10 @@ import utils.StreamUtils.log
   * Replicate the events to the database.
   */
 object Replicator {
-  def apply[F[_]: Effect, E: EventTypable: Gossipable](db: Database[F], events: Stream[F, E]): Stream[F, Unit] = {
+  def apply[F[_]: Effect, E: EventTypable: Gossipable](db: Database[F],
+                                                       events: Stream[F, E]): Stream[F, Unit] = {
     val handler = implicitly[ReplicateEvents[TweetsEvent :: UsersEvent :: HNil, E]]
 
-    events
-      .through(log("Replicator"))
-      .evalMap(handler.replicate(db)(_))
+    events.evalMap(handler.replicate(db)(_))
   }
 }

@@ -13,6 +13,6 @@ case class Tweet(userId: UserId, content: Content)
 object Tweet {
   sealed trait ContentTag
   type Content = String @@ ContentTag
-  
+
   lazy val tweetEncoder: Encoder[Tweet] = deriveEncoder[Tweet]
 }

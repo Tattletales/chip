@@ -3,7 +3,6 @@ package backend.events
 import backend.events.Event.{EventType, Lsn, Payload}
 import backend.gossip.Gossipable
 
-
 /**
   * Event sent by the ServerSentEvent protocol
   */

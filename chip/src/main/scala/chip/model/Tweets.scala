@@ -80,7 +80,7 @@ object TweetsEvents {
           """)
         }
       }
-    
+
     implicit val tweetsEventEncoder: Encoder[TweetsEvent] = deriveEncoder[TweetsEvent]
   }
 }

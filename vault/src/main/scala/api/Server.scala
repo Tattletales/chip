@@ -27,9 +27,10 @@ trait Server[F[_]] extends Http4sDsl[F] {
 }
 
 object Server {
-  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](accounts: Accounts[F],
-                                                         daemon: GossipDaemon[F, TransactionStage, E],
-                                                         port: Option[Int] = None): Server[F] =
+  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
+      accounts: Accounts[F],
+      daemon: GossipDaemon[F, TransactionStage, E],
+      port: Option[Int] = None): Server[F] =
     new Server[F] {
       private val amountFieldId = "amount-input-id"
       private val beneficiaryFieldId = "beneficiary-input-id"

@@ -24,31 +24,33 @@ object Benchmark {
   def loneSender[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
-    def run: Stream[F, Unit] = {
-      val start = Stream.eval {
-        daemon.getNodeId
-          .map(_ == users.head)
-          .ifM(accounts.transfer(users(1 % users.size), tag[MoneyTag][Double](0.001)),
-               implicitly[Effect[F]].unit)
-
-      }
-
-      def next(deposit: Deposit): F[Unit] = deposit match {
-        case Deposit(from, to, _, _) =>
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+    new Program[F] {
+      def run: Stream[F, Unit] = {
+        val start = Stream.eval {
           daemon.getNodeId
-            .map(_ == from)
-            .ifM({
-              val toIndex = users.indexOf(to)
-              accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
-            }, implicitly[Effect[F]].unit)
+            .map(_ == users.head)
+            .ifM(accounts.transfer(users(1 % users.size), tag[MoneyTag][Double](0.001)),
+                 implicitly[Effect[F]].unit)
+
+        }
+
+        def next(deposit: Deposit): F[Unit] = deposit match {
+          case Deposit(from, to, _, _) =>
+            daemon.getNodeId
+              .map(_ == from)
+              .ifM({
+                val toIndex = users.indexOf(to)
+                accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
+              }, implicitly[Effect[F]].unit)
+        }
+
+        val handler =
+          daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
+
+        Stream(start, handler).join(2).drain
       }
-
-      val handler = daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
-
-      Stream(start, handler).join(2).drain
     }
-  }
 
   /**
     * Infinitely transfer money to the other users. The order is random but each
@@ -57,24 +59,25 @@ object Benchmark {
   def random[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
-    def run: Stream[F, Unit] = {
-      val benchmark = for {
-        me <- Stream.eval(daemon.getNodeId)
-        shuffledUsers <- Stream(Random.shuffle(users.filter(_ != me))).covary[F]
-        _ <- Stream.repeatEval {
-          shuffledUsers
-            .traverse(user => accounts.transfer(user, tag[MoneyTag][Double](0.001)))
-            .map(_ => ())
-        }
-      } yield ()
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+    new Program[F] {
+      def run: Stream[F, Unit] = {
+        val benchmark = for {
+          me <- Stream.eval(daemon.getNodeId)
+          shuffledUsers <- Stream(Random.shuffle(users.filter(_ != me))).covary[F]
+          _ <- Stream.repeatEval {
+            shuffledUsers
+              .traverse(user => accounts.transfer(user, tag[MoneyTag][Double](0.001)))
+              .map(_ => ())
+          }
+        } yield ()
 
-      val handler = daemon.subscribe.through(
-        handleTransactionStages(_ => implicitly[Applicative[F]].unit)(daemon, kvs, accounts))
+        val handler = daemon.subscribe.through(
+          handleTransactionStages(_ => implicitly[Applicative[F]].unit)(daemon, kvs, accounts))
 
-      Stream(benchmark, handler).join(2).drain
+        Stream(benchmark, handler).join(2).drain
+      }
     }
-  }
 
   /**
     * Infinitely transfer at the user after itself in the list.
@@ -83,29 +86,31 @@ object Benchmark {
   def localRoundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
-    def run: Stream[F, Unit] = {
-      val start = Stream.eval(for {
-        me <- daemon.getNodeId
-        first = (users.indexOf(me) + 1) % users.size
-        _ <- accounts.transfer(users(first), tag[MoneyTag][Double](0.001))
-      } yield ())
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+    new Program[F] {
+      def run: Stream[F, Unit] = {
+        val start = Stream.eval(for {
+          me <- daemon.getNodeId
+          first = (users.indexOf(me) + 1) % users.size
+          _ <- accounts.transfer(users(first), tag[MoneyTag][Double](0.001))
+        } yield ())
 
-      def next(deposit: Deposit): F[Unit] = deposit match {
-        case Deposit(from, to, _, _) =>
-          daemon.getNodeId
-            .map(_ == from)
-            .ifM({
-              val toIndex = users.indexOf(to)
-              accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
-            }, implicitly[Effect[F]].unit)
+        def next(deposit: Deposit): F[Unit] = deposit match {
+          case Deposit(from, to, _, _) =>
+            daemon.getNodeId
+              .map(_ == from)
+              .ifM({
+                val toIndex = users.indexOf(to)
+                accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
+              }, implicitly[Effect[F]].unit)
+        }
+
+        val handler =
+          daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
+
+        Stream(start, handler).join(2).drain
       }
-
-      val handler = daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
-
-      Stream(start, handler).join(2).drain
     }
-  }
 
   /**
     * Infinitely transfer money from one user to the other.
@@ -113,28 +118,30 @@ object Benchmark {
   def roundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
-    def run: Stream[F, Unit] = {
-      val start = Stream.eval {
-        daemon.getNodeId
-          .map(_ == users.head)
-          .ifM(accounts.transfer(users(1 % users.size), tag[MoneyTag][Double](0.001)),
-               implicitly[Effect[F]].unit)
-      }
-
-      def next(deposit: Deposit): F[Unit] = deposit match {
-        case Deposit(_, to, _, _) =>
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+    new Program[F] {
+      def run: Stream[F, Unit] = {
+        val start = Stream.eval {
           daemon.getNodeId
-            .map(_ == to)
-            .ifM({
-              val toIndex = users.indexOf(to)
-              accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
-            }, implicitly[Effect[F]].unit)
+            .map(_ == users.head)
+            .ifM(accounts.transfer(users(1 % users.size), tag[MoneyTag][Double](0.001)),
+                 implicitly[Effect[F]].unit)
+        }
+
+        def next(deposit: Deposit): F[Unit] = deposit match {
+          case Deposit(_, to, _, _) =>
+            daemon.getNodeId
+              .map(_ == to)
+              .ifM({
+                val toIndex = users.indexOf(to)
+                accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
+              }, implicitly[Effect[F]].unit)
+        }
+
+        val handler =
+          daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
+
+        Stream(start, handler).join(2).drain
       }
-
-      val handler = daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
-
-      Stream(start, handler).join(2).drain
     }
-  }
 }

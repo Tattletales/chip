@@ -4,10 +4,9 @@ version := "0.1"
 
 scalaVersion := "2.12.4"
 
-
 wartremoverWarnings ++= Warts.unsafe
 
-resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+resolvers += "krasserm at bintray".at("http://dl.bintray.com/krasserm/maven")
 resolvers += Resolver.sonatypeRepo("releases")
 
 lazy val doobieVersion = "0.5.1"
@@ -20,11 +19,9 @@ libraryDependencies ++= Seq(
   "io.circe" %%% "circe-generic" % circeVersion,
   "io.circe" %%% "circe-literal" % circeVersion,
   "io.circe" %%% "circe-parser" % circeVersion,
-
-  compilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full),
+  compilerPlugin(("org.scalamacros" % "paradise" % "2.1.1").cross(CrossVersion.full)),
   compilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
-  compilerPlugin("org.scalameta" % "paradise" % "3.0.0-M11" cross CrossVersion.full),
-
+  compilerPlugin(("org.scalameta" % "paradise" % "3.0.0-M11").cross(CrossVersion.full)),
   "org.typelevel" %% "cats-core" % "1.1.0",
   "org.typelevel" %% "cats-effect" % "1.0.0-RC",
   "org.tpolecat" %% "doobie-core" % "0.5.2",
@@ -49,4 +46,3 @@ libraryDependencies ++= Seq(
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
   "com.typesafe" % "config" % "1.3.2"
 )
-

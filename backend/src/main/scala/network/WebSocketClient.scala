@@ -34,7 +34,8 @@ object WebSocketClient {
 
       def send(message: M1): F[Unit] = outgoingQueue.enqueue1(message.asJson.noSpaces)
       def receive: Stream[F, M2] =
-        incomingQueue.dequeue.evalMap(s => implicitly[MonadError[F, Throwable]].fromEither(decode[M2](s)))
+        incomingQueue.dequeue.evalMap(s =>
+          implicitly[MonadError[F, Throwable]].fromEither(decode[M2](s)))
 
       private val incoming: AkkaSink[Message, Future[Done]] = AkkaSink.fromGraph(Sink[F, Message] {
         case m: TextMessage.Strict   => incomingQueue.enqueue1(m.text)
@@ -47,19 +48,18 @@ object WebSocketClient {
 
       private val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(uri))
 
-      private val (upgradeResponse, closed) =
+      private val (upgradeResponse, _) =
         outgoing
           .viaMat(webSocketFlow)(Keep.right) // keep the materialized Future[WebSocketUpgradeResponse]
           .toMat(incoming)(Keep.both) // also keep the Future[Done]
           .run()
 
-      private val connected = upgradeResponse.flatMap { upgrade =>
+      private val _ = upgradeResponse.flatMap { upgrade =>
         if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
           Future.successful(Done)
         } else {
           throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
         }
       }
-
     }
 }

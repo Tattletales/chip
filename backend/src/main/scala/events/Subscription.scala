@@ -69,12 +69,12 @@ object Subscription {
       }
 
       /**
-        * Convert from [[ServerSentEvent]] to [[WSEvent]]
+        * Convert from [[ServerSentEvent]] to [[SSEvent]]
         *
         * Fails with [[MalformedSSE]] if there's [[ServerSentEvent]] that cannot be decoded.
         * For instance, it doesn't have an event type or the id is not to specs ("nodeId-eventId").
         */
-      private def convert[F[_]](
+      private def convert(
           implicit F: ApplicativeError[F, Throwable]): Pipe[F, ServerSentEvent, SSEvent] =
         _.evalMap { sse =>
           val maybeEvent = for {

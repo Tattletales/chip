@@ -36,9 +36,6 @@ object GossipServer {
               for {
                 log <- logs.get(tag[NodeIdTag][String](nodeId))
                 resend = log.get.takeWhile(_.id.get != lastEventId.id)
-                _ = println(s"Last ID: ${lastEventId.id}")
-                _ = log.get.foreach(m => println(s"Log ($nodeId): $m"))
-                _ = resend.foreach(m => println(s"Resending ($nodeId): $m"))
                 queue = eventQueues(tag[NodeIdTag][String](nodeId))
                 _ <- resend.traverse(queue.enqueue1)
                 response <- Ok(queue.dequeue)
@@ -66,8 +63,7 @@ object GossipServer {
               logs.keys.flatMap(_.toList.traverse(addToLog(_, sse)) *> IO.unit)
 
             def addToQueues(sse: ServerSentEvent): IO[Unit] =
-              eventQueues.values.toList
-                .traverse(q => { println(s"\n==== ADDING sse : ${sse}"); q.enqueue1(sse) }) *> IO.unit
+              eventQueues.values.toList.traverse(_.enqueue1(sse)) *> IO.unit
 
             // Run both in parallel
             Ok(sse.flatMap(sse => (addToLogs(sse), addToQueues(sse)).mapN((_, _) => println(sse))))
@@ -89,7 +85,8 @@ object GossipServer {
     new GossipServer[F, WSEvent] {
       def service: HttpService[F] = HttpService[F] {
         case GET -> Root / "events" / nodeId =>
-          val outgoing = eventQueues(tag[NodeIdTag][String](nodeId)).dequeue.through(handleOutgoing)
+          val outgoing =
+            eventQueues(tag[NodeIdTag][String](nodeId)).dequeue.through(handleOutgoing)
           val incoming = handleIncoming(tag[NodeIdTag][String](nodeId))
           WebSocketBuilder[F].build(outgoing, incoming)
       }
@@ -102,8 +99,7 @@ object GossipServer {
           logs.keys.flatMap(_.toList.traverse(addToLog(_, event)) *> F.unit)
 
         def addToQueues(event: WSEvent): F[Unit] =
-          eventQueues.values.toList
-            .traverse(q => { println(s"\n==== ADDING event : ${event}"); q.enqueue1(event) }) *> F.unit
+          eventQueues.values.toList.traverse(_.enqueue1(event)) *> F.unit
 
         _.evalMap {
           case Text(payload, _) =>

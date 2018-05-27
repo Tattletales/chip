@@ -6,7 +6,7 @@ scalaVersion := "2.12.4"
 
 wartremoverWarnings ++= Warts.unsafe
 
-resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+resolvers += "krasserm at bintray".at("http://dl.bintray.com/krasserm/maven")
 resolvers += Resolver.sonatypeRepo("snapshots")
 
 libraryDependencies ++= Seq(
@@ -16,4 +16,3 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
 )
-

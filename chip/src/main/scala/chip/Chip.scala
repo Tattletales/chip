@@ -29,7 +29,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         eventQueue <- Stream.eval(async.unboundedQueue[F, SSEvent])
 
         db: Database[F] = Database.doobie[F](xa)
-        
+
         daemon = GossipDaemon.sseMock[F, ChipEvent](eventQueue)
 
         users = Users.replicated[F, SSEvent](db, daemon.lmap(Right.apply[TweetsEvent, UsersEvent]))

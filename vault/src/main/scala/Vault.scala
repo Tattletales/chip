@@ -50,7 +50,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         outgoing <- Stream.eval(async.unboundedQueue[F, String])
         wsClient = WebSocketClient.akkaHttp[F, TransactionStage, WSEvent](
           s"ws://localhost:59234/events/${nodeIds.head}")(incoming, outgoing)
-        
+
         daemon0 = GossipDaemon.webSocket[F, TransactionStage](
           tag[RootTag][String](s"http://localhost:59234"),
           nodeIds.headOption)(httpClient, wsClient)
@@ -72,11 +72,4 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         ec <- Stream(server, handler).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
-
-  val xa: Transactor[F] = Transactor.fromDriverManager[F](
-    "org.postgresql.Driver", // driver classname
-    "jdbc:postgresql:chip_db", // connect URL (driver-specific)
-    "florian", // user
-    "mJ9da5mPHniKrsr8KeYx" // password
-  )
 }

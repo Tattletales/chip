@@ -47,8 +47,9 @@ object Accounts {
   /**
     * Interpreter to [[GossipDaemon]] and [[KVStore]] DSLs.
     */
-  def default[F[_], E: Gossipable](daemon: GossipDaemon[F, TransactionStage, E], kvs: KVStore[F, User, Money])(
-      implicit F: Effect[F]): Accounts[F] =
+  def default[F[_], E: Gossipable](
+      daemon: GossipDaemon[F, TransactionStage, E],
+      kvs: KVStore[F, User, Money])(implicit F: Effect[F]): Accounts[F] =
     new Accounts[F] {
 
       /**

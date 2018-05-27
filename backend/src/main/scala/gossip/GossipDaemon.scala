@@ -43,7 +43,7 @@ trait GossipDaemon[F[_], E1, E2] {
   /**
     * Subscribe to the events [[WSEvent]] sent by the daemon.
     */
-  def subscribe: Stream[F, E2] // TODO should be val? no need to create new stream for every call
+  def subscribe: Stream[F, E2]
 
   /**
     * Get all the events from the daemon's log.
@@ -200,10 +200,8 @@ object GossipDaemon {
         *
         * Logs `e`.
         */
-      def send(e: E1): F[Unit] = {
-        println("SEND")
+      def send(e: E1): F[Unit] =
         log(e) >> daemon.send(e)
-      }
 
       /**
         * @see [[GossipDaemon.subscribe]]

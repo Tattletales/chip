@@ -51,7 +51,7 @@ object Database {
             _ *> _.update.run
           }
           .transact(xa)
-          .map(_ => ()) // Ignore output
+          .map(_ => ())
 
       def insertAndGet[R: Composite](q: Fragment, cols: Column*): F[R] =
         q.update
