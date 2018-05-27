@@ -63,7 +63,7 @@ object Transactions {
     * Finally, they are processed by the transaction handler.
     */
   def handleTransactionStages[F[_]: Effect, E: Gossipable](next: Deposit => F[Unit])(
-      daemon: GossipDaemon[F, E],
+      daemon: GossipDaemon[F, TransactionStage, E],
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F]): Sink[F, E] =
     _.through(decodeAndCausalOrder(accounts))
@@ -74,7 +74,8 @@ object Transactions {
   /**
     * Decode and reorder the transaction stages so they are delivered in a causal order.
     */
-  def decodeAndCausalOrder[F[_]: Effect, E: Gossipable](accounts: Accounts[F]): Pipe[F, E, TransactionStage] =
+  def decodeAndCausalOrder[F[_]: Effect, E: Gossipable](
+      accounts: Accounts[F]): Pipe[F, E, TransactionStage] =
     _.through(decode).through(causalOrder(accounts))
 
   /**
@@ -193,7 +194,7 @@ object Transactions {
     *
     * Fails with [[MissingLsnError]] if there is a [[Withdraw]] with [[Withdraw.lsn]] empty.
     */
-  private def processTransactionStage[F[_], E](daemon: GossipDaemon[F, E],
+  private def processTransactionStage[F[_], E](daemon: GossipDaemon[F, TransactionStage, E],
                                                kvs: KVStore[F, User, Money],
                                                accounts: Accounts[F])(next: Deposit => F[Unit])(
       event: TransactionStage)(implicit F: MonadError[F, Throwable]): F[Unit] = {
@@ -210,7 +211,7 @@ object Transactions {
 
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>
-        val deposit = daemon.send[TransactionStage](Deposit(from, to, amount, lsn))
+        val deposit = daemon.send(Deposit(from, to, amount, lsn))
 
         daemon.getNodeId.map(_ == to).ifM(deposit, F.unit)
 

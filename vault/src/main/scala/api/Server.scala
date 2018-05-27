@@ -26,6 +26,7 @@ import org.http4s.server.blaze.BlazeBuilder
 import org.reactormonk.{CryptoBits, PrivateKey}
 import shapeless.tag
 import scalatags.Text.all.{body, form, _}
+import vault.events.TransactionStage
 import vault.model.Account.{Money, MoneyTag}
 import vault.model.Accounts
 
@@ -37,7 +38,7 @@ trait Server[F[_]] extends Http4sDsl[F] {
 
 object Server {
   def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](accounts: Accounts[F],
-                                                         daemon: GossipDaemon[F, E],
+                                                         daemon: GossipDaemon[F, TransactionStage, E],
                                                          port: Option[Int] = None): Server[F] =
     new Server[F] {
       private val amountFieldId = "amount-input-id"

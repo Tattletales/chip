@@ -50,7 +50,7 @@ object Accounts {
   /**
     * Interpreter to [[GossipDaemon]] and [[KVStore]] DSLs.
     */
-  def default[F[_], E: Gossipable](daemon: GossipDaemon[F, E], kvs: KVStore[F, User, Money])(
+  def default[F[_], E: Gossipable](daemon: GossipDaemon[F, TransactionStage, E], kvs: KVStore[F, User, Money])(
       implicit F: Effect[F]): Accounts[F] =
     new Accounts[F] {
 
@@ -68,7 +68,7 @@ object Accounts {
 
           _ <- balance(from).ensureOr(cAmount => UnsufficentFunds(cAmount, from))(_ >= amount)
 
-          _ <- daemon.send[TransactionStage](Withdraw(from, to, amount)).adaptError {
+          _ <- daemon.send(Withdraw(from, to, amount)).adaptError {
             case SendError => TransferError
           }
         } yield ()
@@ -113,7 +113,7 @@ object Accounts {
       }
     }
 
-  def mock[F[_], E](daemon: GossipDaemon[F, E], kvs: KVStore[F, User, Money])(
+  def mock[F[_], E](daemon: GossipDaemon[F, TransactionStage, E], kvs: KVStore[F, User, Money])(
       implicit F: MonadError[F, Throwable]): Accounts[F] = new Accounts[F] {
 
     /**

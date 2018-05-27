@@ -8,7 +8,7 @@ import cats.implicits._
 import fs2._
 import gossip.Gossipable
 import shapeless.tag
-import vault.events.Deposit
+import vault.events.{Deposit, TransactionStage}
 import vault.events.Transactions.handleTransactionStages
 import vault.model.Account.{Money, MoneyTag, User}
 import vault.model.Accounts
@@ -24,7 +24,7 @@ object Benchmark {
   def loneSender[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val start = Stream.eval {
         daemon.getNodeId
@@ -57,7 +57,7 @@ object Benchmark {
   def random[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val benchmark = for {
         me <- Stream.eval(daemon.getNodeId)
@@ -83,7 +83,7 @@ object Benchmark {
   def localRoundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val start = Stream.eval(for {
         me <- daemon.getNodeId
@@ -113,7 +113,7 @@ object Benchmark {
   def roundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] = new Program[F] {
     def run: Stream[F, Unit] = {
       val start = Stream.eval {
         daemon.getNodeId
