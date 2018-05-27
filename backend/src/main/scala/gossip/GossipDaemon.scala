@@ -172,14 +172,18 @@ object GossipDaemon {
         *   - [[LogRetrievalError]] if the log cannot be retrieved.
         */
       def getLog: F[List[WSEvent]] =
-        httpClient
-          .get[Json](tag[UriTag][String](s"$root/log"))
-          .flatMap { json =>
-            F.fromEither(json.as[List[WSEvent]])
-          }
-          .adaptError {
-            case _ => LogRetrievalError
-          }
+        for {
+          nodeId <- getNodeId
+          log <- httpClient
+            .get[Json](tag[UriTag][String](s"$root/log/$nodeId"))
+            .flatMap { json =>
+              F.fromEither(json.as[List[WSEvent]])
+            }
+            .adaptError {
+              case _ => LogRetrievalError
+            }
+        } yield log
+
     }
 
   /**
