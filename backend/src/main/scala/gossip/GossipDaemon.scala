@@ -1,32 +1,27 @@
 package backend.gossip
 
-import backend.errors.{LogRetrievalError, NodeIdError, SendError}
-import cats.effect.Sync
 import java.io._
 
-import cats.effect.{Async, Effect, Sync}
-import cats.implicits._
-import cats.{Applicative, ApplicativeError, Monad, MonadError}
+import backend.errors.{LogRetrievalError, NodeIdError, SendError}
+import backend.implicits._
 import backend.events.Subscriber._
 import backend.events.{EventTyper, Subscriber}
-import backend.gossip.GossipDaemon._
 import backend.gossip.Node.{NodeId, NodeIdTag}
-import backend.implicits._
-import fs2.async.mutable.Queue
-import fs2.Stream
-import io.circe.generic.auto._
-import io.circe.parser.decode
-import io.circe.syntax._
-import io.circe.{DecodingFailure, Encoder, Json}
 import backend.network.HttpClient
 import backend.network.HttpClient.{Root, UriTag}
-import org.http4s.{Charset, EntityDecoder, EntityEncoder, UrlForm}
-import org.http4s.circe._
-import utils.StreamUtils.log
-import shapeless.tag
-import UrlForm.entityEncoder
+import cats.arrow.Profunctor
+import cats.effect.{Effect, Sync}
+import cats.implicits._
+import cats.{Functor, MonadError}
+import fs2.Stream
+import fs2.async.mutable.Queue
+import io.circe.generic.auto._
+import io.circe.syntax._
+import io.circe.{Encoder, Json}
 import network.WebSocketClient
-import shapeless.tag.@@
+import org.http4s.circe._
+import shapeless.tag
+import utils.StreamUtils.log
 
 /**
   * Gossip daemon DSL
@@ -253,5 +248,16 @@ object GossipDaemon {
       def subscribe: Stream[F, SSEvent] = eventQueue.dequeue.through(log("New event"))
 
       def getLog: F[List[SSEvent]] = F.pure(List.empty)
+    }
+
+  implicit def gossipDaemonProfunctor[F[_]: Functor]: Profunctor[GossipDaemon[F, ?, ?]] =
+    new Profunctor[GossipDaemon[F, ?, ?]] {
+      def dimap[A, B, C, D](daemon: GossipDaemon[F, A, B])(f: C => A)(
+          g: B => D): GossipDaemon[F, C, D] = new GossipDaemon[F, C, D] {
+        def getNodeId: F[NodeId] = daemon.getNodeId
+        def send(e: C): F[Unit] = daemon.send(f(e))
+        def subscribe: Stream[F, D] = daemon.subscribe.map(g)
+        def getLog: F[List[D]] = daemon.getLog.map(_.map(g))
+      }
     }
 }
