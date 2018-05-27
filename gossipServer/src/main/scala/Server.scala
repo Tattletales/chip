@@ -3,7 +3,7 @@ package gossipServer
 import backend.events.Subscriber.WSEvent
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.storage.KVStore
-import cats.effect.IO
+import cats.effect.{Effect, IO}
 import cats.implicits._
 import fs2.StreamApp.ExitCode
 import fs2.{Scheduler, Stream, StreamApp, async}
@@ -15,29 +15,29 @@ import shapeless.tag
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
-object MainApp extends Main
+object MainApp extends Main[IO]
 
-class Main extends StreamApp[IO] {
-  override def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = {
+class Main[F[_]: Effect] extends StreamApp[F] {
+  override def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] = {
     val nodes = args(0).toInt
     val nodeNames = args.slice(1, 1 + nodes).map(tag[NodeIdTag][String])
 
     val eventQueues = nodeNames
-      .traverse(_ => async.unboundedQueue[IO, WSEvent])
+      .traverse(_ => async.unboundedQueue[F, WSEvent])
       .map(nodeNames.zip(_).toMap)
 
     val eventIds = nodeNames
-      .traverse(_ => async.refOf[IO, Int](0))
+      .traverse(_ => async.refOf[F, Int](0))
       .map(nodeNames.zip(_).toMap)
 
     for {
       eventQueues <- Stream.eval(eventQueues)
       eventIds <- Stream.eval(eventIds)
-      store = KVStore.mapKVS[IO, NodeId, List[WSEvent]]
+      store = KVStore.mapKVS[F, NodeId, List[WSEvent]]
       _ <- Stream.eval(nodeNames.traverse(store.put(_, List.empty)))
       service = GossipServer.webSocket(nodeNames)(eventQueues, eventIds, store).service
 
-      server <- BlazeBuilder[IO]
+      server <- BlazeBuilder[F]
         .withIdleTimeout(Duration.Inf)
         .withWebSockets(true)
         .bindHttp(59234, "localhost")
