@@ -24,7 +24,7 @@ trait WebSocketClient[F[_], M1, M2] {
 }
 
 object WebSocketClient {
-  def default[F[_]: Timer: Effect, M1: Encoder, M2: Decoder](uri: String)(
+  def akkaHttp[F[_]: Timer: Effect, M1: Encoder, M2: Decoder](uri: String)(
       incomingQueue: Queue[F, String],
       outgoingQueue: Queue[F, String]): WebSocketClient[F, M1, M2] =
     new WebSocketClient[F, M1, M2] {
