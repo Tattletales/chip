@@ -1,18 +1,23 @@
 package chip
 
-import backend.events.Subscriber.{EventId, SSEvent, WSEvent}
+import backend.events.Subscriber.SSEvent
+import backend.gossip.GossipDaemon
+import backend.storage.Database
 import cats.effect.{Effect, IO}
+import cats.implicits._
 import chip.api.Server
 import chip.events.Replicator
+import chip.model.ChipEvent.{ChipEvent, _}
+import chip.model.TweetsEvents.TweetsEvent
+import chip.model.TweetsEvents.TweetsEvent._
+import chip.model.UsersEvents.UsersEvent
+import chip.model.UsersEvents.UsersEvent._
 import chip.model.{Tweets, Users}
 import doobie.util.transactor.Transactor
 import fs2.StreamApp.ExitCode
 import fs2._
-import backend.gossip.GossipDaemon
-import backend.gossip.Node._
-import backend.storage.Database
-import shapeless.tag
 import org.http4s.circe._
+import shapeless.tag
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -25,11 +30,11 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
         eventQueue <- Stream.eval(async.unboundedQueue[F, SSEvent])
 
         db: Database[F] = Database.doobieDatabase[F](xa)
+        
+        daemon = GossipDaemon.sseMock[F, ChipEvent](eventQueue)
 
-        daemon = GossipDaemon.sseMock[F](eventQueue)
-
-        users = Users.replicated[F, SSEvent](db, daemon)
-        tweets = Tweets.replicated[F, SSEvent](db, daemon)
+        users = Users.replicated[F, SSEvent](db, daemon.lmap(Right.apply[TweetsEvent, UsersEvent]))
+        tweets = Tweets.replicated[F, SSEvent](db, daemon.lmap(Left.apply[TweetsEvent, UsersEvent]))
 
         replicator = Replicator[F, SSEvent](db, daemon.subscribe)
 

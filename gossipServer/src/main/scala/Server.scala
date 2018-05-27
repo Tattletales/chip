@@ -33,7 +33,7 @@ class Server[F[_]: Effect] extends StreamApp[F] {
     for {
       eventQueues <- Stream.eval(eventQueues)
       eventIds <- Stream.eval(eventIds)
-      store = KVStore.mapKVS[F, NodeId, List[WSEvent]]
+      store = KVStore.mutableMap[F, NodeId, List[WSEvent]]
       _ <- Stream.eval(nodeNames.traverse(store.put(_, List.empty)))
       service = GossipServer.webSocket(nodeNames)(eventQueues, eventIds, store).service
 

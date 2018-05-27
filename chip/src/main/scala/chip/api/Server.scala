@@ -16,6 +16,7 @@ import fs2.StreamApp.ExitCode
 import backend.implicits._
 import backend.gossip.GossipDaemon
 import backend.gossip.Node.{NodeId, NodeIdTag}
+import chip.model.ChipEvent.ChipEvent
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -40,7 +41,7 @@ trait Server[F[_]] extends Http4sDsl[F] {
 object Server {
   def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](users: Users[F],
                                                             tweets: Tweets[F],
-                                                            daemon: GossipDaemon[F, E]): Server[F] =
+                                                            daemon: GossipDaemon[F, ChipEvent, E]): Server[F] =
     new Server[F] {
       private val key = PrivateKey(
         scala.io.Codec.toUTF8(scala.util.Random.alphanumeric.take(20).mkString("")))

@@ -52,7 +52,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
 
         incoming <- Stream.eval(async.unboundedQueue[F, String])
         outgoing <- Stream.eval(async.unboundedQueue[F, String])
-        wsClient = WebSocketClient.default[F, TransactionStage, WSEvent](
+        wsClient = WebSocketClient.akkaHttp[F, TransactionStage, WSEvent](
           s"ws://localhost:59234/events/${nodeIds.head}")(incoming, outgoing)
 
         //daemon0 = GossipDaemon.default[F](
@@ -63,7 +63,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
           nodeIds.headOption)(httpClient, wsClient)
         daemon = GossipDaemon.logging[F, TransactionStage, WSEvent]("test")(daemon0)
 
-        kvs = KVStore.mapKVS[F, User, Money]
+        kvs = KVStore.mutableMap[F, User, Money]
 
         accounts <- Stream.eval(
           Accounts

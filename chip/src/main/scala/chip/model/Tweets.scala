@@ -10,6 +10,7 @@ import chip.events.Replicable
 import chip.model.TweetsEvents.{AddTweet, TweetsEvent}
 import backend.gossip.GossipDaemon
 import org.http4s.EntityDecoder
+import io.circe.generic.semiauto._
 import io.circe.generic.auto._
 import backend.storage.Database
 import shapeless.tag
@@ -17,6 +18,7 @@ import backend.events.EventTyper
 import chip.implicits._
 import backend.implicits._
 import gossip.Gossipable
+import io.circe.Encoder
 
 /**
   * Tweets DSL
@@ -36,7 +38,7 @@ object Tweets {
     */
   def replicated[F[_]: Monad: EntityDecoder[?[_], String], E: Gossipable](
       db: Database[F],
-      daemon: GossipDaemon[F, E]
+      daemon: GossipDaemon[F, TweetsEvent, E]
   ): Tweets[F] = new Tweets[F] {
 
     def getTweets(user: User): F[List[Tweet]] =
@@ -54,7 +56,7 @@ object Tweets {
     def addTweet(user: User, tweetContent: Content): F[Tweet] = {
       val tweet = Tweet(user.id, tweetContent)
 
-      daemon.send[TweetsEvent](AddTweet(tweet)).map(_ => tweet)
+      daemon.send(AddTweet(tweet)).map(_ => tweet)
     }
   }
 }
@@ -78,5 +80,7 @@ object TweetsEvents {
           """)
         }
       }
+    
+    implicit val tweetsEventEncoder: Encoder[TweetsEvent] = deriveEncoder[TweetsEvent]
   }
 }

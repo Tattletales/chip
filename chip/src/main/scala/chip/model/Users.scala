@@ -14,9 +14,11 @@ import backend.storage.Database
 import shapeless.tag
 import chip.implicits._
 import backend.events.EventTyper
+import io.circe.generic.semiauto._
 import io.circe.generic.auto._
 import backend.implicits._
 import gossip.Gossipable
+import io.circe.Encoder
 
 /**
   * Users DSL
@@ -37,13 +39,13 @@ object Users {
     */
   def replicated[F[_]: Monad: EntityDecoder[?[_], String], E: Gossipable](
       db: Database[F],
-      daemon: GossipDaemon[F, E]
+      daemon: GossipDaemon[F, UsersEvent, E]
   ): Users[F] = new Users[F] {
     def addUser(name: Username): F[User] =
       for {
         id <- daemon.getNodeId
         user = User(id, name)
-        _ <- daemon.send[UsersEvent](AddUser(user))
+        _ <- daemon.send(AddUser(user))
       } yield user
 
     def searchUser(name: Username): F[List[User]] =
@@ -80,5 +82,8 @@ object UsersEvents {
        """)
         }
       }
+
+    implicit val usersEventEncoder: Encoder[UsersEvent] = deriveEncoder[UsersEvent]
+
   }
 }
