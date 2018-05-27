@@ -15,9 +15,9 @@ import shapeless.tag
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
-object MainApp extends Main[IO]
+object ServerApp extends Server[IO]
 
-class Main[F[_]: Effect] extends StreamApp[F] {
+class Server[F[_]: Effect] extends StreamApp[F] {
   override def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] = {
     val nodes = args(0).toInt
     val nodeNames = args.slice(1, 1 + nodes).map(tag[NodeIdTag][String])
