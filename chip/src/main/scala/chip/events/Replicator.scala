@@ -12,7 +12,6 @@ import chip.implicits._
 import io.circe.generic.auto._
 import fs2._
 import shapeless.{::, HNil}
-import utils.StreamUtils.log
 
 /**
   * Replicate the events to the database.

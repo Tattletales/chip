@@ -2,7 +2,7 @@ package vault.programs
 
 import fs2._
 import cats.effect.Effect
-import utils.StreamUtils.interruptAfter
+import utils.stream.Utils.interruptAfter
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._

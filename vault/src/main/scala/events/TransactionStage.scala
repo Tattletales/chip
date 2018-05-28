@@ -17,7 +17,7 @@ import vault.model.Account.{Money, MoneyTag, User}
 import vault.model._
 import backend.gossip.Gossipable
 import backend.gossip.Gossipable.ops._
-import utils.StreamUtils
+import utils.stream.Utils
 import vault.errors.{MissingLsnError, PayloadDecodingError, SenderError}
 
 /**
@@ -61,8 +61,8 @@ object Transactions {
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F]): Sink[F, E] =
     _.through(decodeAndCausalOrder(accounts))
-      .through(StreamUtils.log("Delivered"))
-      .through(StreamUtils.logToFile("DELIVERED", "test"))
+      .through(Utils.log("Delivered"))
+      .through(Utils.logToFile("DELIVERED", "test"))
       .evalMap(processTransactionStage(daemon, kvs, accounts)(next))
 
   /**

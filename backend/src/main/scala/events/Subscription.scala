@@ -2,7 +2,7 @@ package backend.events
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.{Uri => AkkaUri, _}
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.settings.ConnectionPoolSettings
 import akka.stream.ActorMaterializer
@@ -14,6 +14,8 @@ import backend.gossip.Node.NodeIdTag
 import cats.ApplicativeError
 import cats.effect.Effect
 import cats.implicits._
+import eu.timepit.refined.api.Refined
+import eu.timepit.refined.string.Uri
 import fs2.interop.reactivestreams._
 import fs2.{Pipe, Stream}
 import shapeless.tag
@@ -31,7 +33,7 @@ trait Subscription[F[_], E] {
   /**
     * Subscribe to the event stream
     */
-  def subscribe(uri: String): Stream[F, E]
+  def subscribe(uri: String Refined Uri): Stream[F, E]
 }
 
 object Subscription {
@@ -52,9 +54,9 @@ object Subscription {
         * Failures:
         *   - [[MalformedSSE]] TODO documentation
         */
-      def subscribe(uri: String): Stream[F, SSEvent] = {
+      def subscribe(uri: String Refined Uri): Stream[F, SSEvent] = {
         val eventSource = EventSource(
-          Uri(uri),
+          AkkaUri(uri.value),
           (a: HttpRequest) =>
             Http().singleRequest(a,
                                  settings =

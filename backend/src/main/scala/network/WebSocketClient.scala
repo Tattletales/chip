@@ -3,12 +3,14 @@ package network
 import akka.{Done, NotUsed}
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{StatusCodes, Uri => AkkaUri}
 import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink => AkkaSink, Source => AkkaSource}
 import cats.MonadError
 import cats.effect.{Effect, Timer}
+import eu.timepit.refined.api.Refined
+import eu.timepit.refined.string.Uri
 import fs2.{Sink, Stream}
 import fs2.async.mutable.Queue
 import io.circe.{Decoder, Encoder}
@@ -24,7 +26,7 @@ trait WebSocketClient[F[_], M1, M2] {
 }
 
 object WebSocketClient {
-  def akkaHttp[F[_]: Timer: Effect, M1: Encoder, M2: Decoder](uri: String)(
+  def akkaHttp[F[_]: Timer: Effect, M1: Encoder, M2: Decoder](route: String Refined Uri)(
       incomingQueue: Queue[F, String],
       outgoingQueue: Queue[F, String]): WebSocketClient[F, M1, M2] =
     new WebSocketClient[F, M1, M2] {
@@ -46,7 +48,7 @@ object WebSocketClient {
         AkkaSource
           .fromGraph(outgoingQueue.dequeue.map(TextMessage.Strict).toSource)
 
-      private val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(uri))
+      private val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(AkkaUri(route.value)))
 
       private val (upgradeResponse, _) =
         outgoing

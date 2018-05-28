@@ -2,7 +2,7 @@ package vault.errors
 
 import backend.events.Event.Payload
 import vault.model.Account.{Money, User}
-import utils.Error
+import utils.error.Error
 import vault.events.Withdraw
 
 /**

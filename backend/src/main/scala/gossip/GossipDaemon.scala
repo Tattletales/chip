@@ -2,26 +2,26 @@ package backend.gossip
 
 import java.io._
 
-import backend.errors.{LogRetrievalError, NodeIdError, SendError}
+import backend.errors.{LogRetrievalError, NodeIdError}
 import backend.events.Event._
 import backend.implicits._
 import backend.events.{EventTyper, SSEvent, Subscription, WSEvent}
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.network.HttpClient
-import backend.network.HttpClient.{Root, UriTag}
+import eu.timepit.refined.string.Uri
 import cats.arrow.Profunctor
 import cats.effect.{Effect, Sync}
 import cats.implicits._
 import cats.{Functor, MonadError}
+import eu.timepit.refined.api.Refined
 import fs2.Stream
 import fs2.async.mutable.Queue
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import network.WebSocketClient
-import org.http4s.circe._
 import shapeless.tag
-import utils.StreamUtils.log
+import utils.stream.Utils.log
 
 /**
   * Gossip daemon DSL
@@ -60,7 +60,11 @@ object GossipDaemon {
     * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with
     * events gossiped using ServerSentEvents.
     */
-  def serverSentEvent[F[_], E: Encoder](root: Root, nodeId: Option[NodeId] = None)(
+  def serverSentEvent[F[_], E: Encoder](
+      nodeIdRoute: String Refined Uri,
+      sendRoute: String Refined Uri,
+      subscribeRoute: String Refined Uri,
+      logRoute: String Refined Uri)(nodeId: Option[NodeId] = None)(
       httpClient: HttpClient[F],
       subscriber: Subscription[F, SSEvent])(implicit F: MonadError[F, Throwable],
                                             E: EventTyper[E]): GossipDaemon[F, E, SSEvent] =
@@ -76,7 +80,7 @@ object GossipDaemon {
         case Some(nodeId) => F.pure(nodeId)
         case None =>
           httpClient
-            .getRaw(tag[UriTag][String](s"$root/unique"))
+            .getRaw(nodeIdRoute)
             .map(tag[NodeIdTag][String])
             .adaptError {
               case _ => NodeIdError
@@ -98,12 +102,12 @@ object GossipDaemon {
 
         for {
           n <- getNodeId
-          _ <- httpClient.postFormAndIgnore(tag[UriTag][String](s"$root/gossip/$n"), form)
+          _ <- httpClient.postFormAndIgnore(sendRoute, form)
         } yield ()
       }
 
       def subscribe: Stream[F, SSEvent] =
-        Stream.force(getNodeId.map(nodeId => subscriber.subscribe(s"$root/events/$nodeId")))
+        Stream.force(getNodeId.map(nodeId => subscriber.subscribe(subscribeRoute)))
 
       /**
         * @see [[GossipDaemon.getLog]]
@@ -113,7 +117,7 @@ object GossipDaemon {
         */
       def getLog: F[List[SSEvent]] =
         httpClient
-          .get[Json](tag[UriTag][String](s"$root/log"))
+          .get[Json](logRoute)
           .flatMap { json =>
             F.fromEither(json.as[List[SSEvent]])
           }
@@ -126,10 +130,10 @@ object GossipDaemon {
     * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with events
     * gossiped using WebSockets.
     */
-  def webSocket[F[_], E: Encoder](root: Root, nodeId: Option[NodeId] = None)(
-      httpClient: HttpClient[F],
-      ws: WebSocketClient[F, E, WSEvent])(implicit F: MonadError[F, Throwable],
-                                          E: EventTyper[E]): GossipDaemon[F, E, WSEvent] =
+  def webSocket[F[_], E: Encoder](nodeIdRoute: String Refined Uri, logRoute: String Refined Uri)(
+      nodeId: Option[NodeId] = None)(httpClient: HttpClient[F], ws: WebSocketClient[F, E, WSEvent])(
+      implicit F: MonadError[F, Throwable],
+      E: EventTyper[E]): GossipDaemon[F, E, WSEvent] =
     new GossipDaemon[F, E, WSEvent] {
 
       /**
@@ -142,7 +146,7 @@ object GossipDaemon {
         case Some(nodeId) => F.pure(nodeId)
         case None =>
           httpClient
-            .getRaw(tag[UriTag][String](s"$root/unique"))
+            .getRaw(nodeIdRoute)
             .map(tag[NodeIdTag][String])
             .adaptError {
               case _ => NodeIdError
@@ -167,17 +171,14 @@ object GossipDaemon {
         *   - [[LogRetrievalError]] if the log cannot be retrieved.
         */
       def getLog: F[List[WSEvent]] =
-        for {
-          nodeId <- getNodeId
-          log <- httpClient
-            .get[Json](tag[UriTag][String](s"$root/log/$nodeId"))
-            .flatMap { json =>
-              F.fromEither(json.as[List[WSEvent]])
-            }
-            .adaptError {
-              case _ => LogRetrievalError
-            }
-        } yield log
+        httpClient
+          .get[Json](logRoute)
+          .flatMap { json =>
+            F.fromEither(json.as[List[WSEvent]])
+          }
+          .adaptError {
+            case _ => LogRetrievalError
+          }
 
     }
 

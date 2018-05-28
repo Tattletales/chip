@@ -66,7 +66,7 @@ object GossipServer {
               eventQueues.values.toList.traverse(_.enqueue1(sse)).void
 
             // Run both in parallel
-            Ok(sse.flatMap(sse => (addToLogs(sse), addToQueues(sse)).mapN((_, _) => F.unit)))
+            Ok(sse.flatMap(sse => (addToLogs(sse), addToQueues(sse)).mapN((_, _) => IO.unit)))
           }
       }
 
