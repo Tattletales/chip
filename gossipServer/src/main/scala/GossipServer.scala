@@ -60,13 +60,13 @@ object GossipServer {
             } yield ServerSentEvent(event, Some(eventType), Some(EventId(s"$nodeId-$eventId")))
 
             def addToLogs(sse: ServerSentEvent): IO[Unit] =
-              logs.keys.flatMap(_.toList.traverse(addToLog(_, sse)) *> IO.unit)
+              logs.keys.flatMap(_.toList.traverse(addToLog(_, sse)).void)
 
             def addToQueues(sse: ServerSentEvent): IO[Unit] =
-              eventQueues.values.toList.traverse(_.enqueue1(sse)) *> IO.unit
+              eventQueues.values.toList.traverse(_.enqueue1(sse)).void
 
             // Run both in parallel
-            Ok(sse.flatMap(sse => (addToLogs(sse), addToQueues(sse)).mapN((_, _) => println(sse))))
+            Ok(sse.flatMap(sse => (addToLogs(sse), addToQueues(sse)).mapN((_, _) => F.unit)))
           }
       }
 
@@ -96,10 +96,10 @@ object GossipServer {
         */
       private def handleIncoming(nodeId: NodeId): Sink[F, WebSocketFrame] = {
         def addToLogs(event: WSEvent): F[Unit] =
-          logs.keys.flatMap(_.toList.traverse(addToLog(_, event)) *> F.unit)
+          logs.keys.flatMap(_.toList.traverse(addToLog(_, event)).void)
 
         def addToQueues(event: WSEvent): F[Unit] =
-          eventQueues.values.toList.traverse(_.enqueue1(event)) *> F.unit
+          eventQueues.values.toList.traverse(_.enqueue1(event)).void
 
         _.evalMap {
           case Text(payload, _) =>
