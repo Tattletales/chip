@@ -48,8 +48,8 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         F.fromEither(refineV[Uri](uri).left.map(m => MalformedUriError(uri, m)))
 
       val uncheckedWsRoute = s"ws://localhost:59234/events/${nodeIds.head}"
-      val uncheckedNodeIdRoute = s"http://localhost:59234/${nodeIds.head}"
-      val uncheckedLogRoute: String = ???
+      val uncheckedNodeIdRoute = s"http://localhost:59234/unique/${nodeIds.head}"
+      val uncheckedLogRoute = s"http://localhost:59234/log/${nodeIds.head}"
 
       for {
         client <- Http1Client.stream()
