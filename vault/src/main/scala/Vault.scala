@@ -21,8 +21,8 @@ import backend.network.HttpClient.RootTag
 import org.http4s.client.blaze.Http1Client
 import vault.api.Server
 import vault.model.Accounts
-
 import cats.Applicative
+import cats.data.NonEmptyList
 import network.WebSocketClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -61,7 +61,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         accounts <- Stream.eval(
           Accounts
             .default[F, WSEvent](daemon, kvs)
-            .withAccounts(nodeIds.head, nodeIds.tail: _*))
+            .withAccounts(NonEmptyList.fromListUnsafe(nodeIds)))
 
         handler = daemon.subscribe.through(
           handleTransactionStages(_ => implicitly[Applicative[F]].unit)(daemon, kvs, accounts))

@@ -22,6 +22,7 @@ libraryDependencies ++= Seq(
   compilerPlugin(("org.scalamacros" % "paradise" % "2.1.1").cross(CrossVersion.full)),
   compilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
   compilerPlugin(("org.scalameta" % "paradise" % "3.0.0-M11").cross(CrossVersion.full)),
+  compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.2.4"),
   "org.typelevel" %% "cats-core" % "1.1.0",
   "org.typelevel" %% "cats-effect" % "1.0.0-RC",
   "org.tpolecat" %% "doobie-core" % "0.5.2",

@@ -8,6 +8,7 @@ import cats.effect.Effect
 import cats.implicits._
 import fs2.Stream
 import backend.gossip.Gossipable
+import cats.data.NonEmptyList
 import shapeless.tag
 import vault.errors.{AccountNotFound, TransferError, UnknownUser, UnsufficentFunds}
 import vault.events.Transactions.decodeAndCausalOrder
@@ -23,7 +24,7 @@ trait Accounts[F[_]] {
     * Add accounts of the given users.
     * Use this to create an [[Accounts]] with users.
     */
-  def withAccounts(u: User, us: User*): F[Accounts[F]]
+  def withAccounts(us: NonEmptyList[User]): F[Accounts[F]]
 
   /**
     * Transfer money from the owner of the current node to another node `to`.
@@ -99,8 +100,8 @@ object Accounts {
       /**
         * @see [[Accounts.withAccounts]]
         */
-      def withAccounts(u: User, us: User*): F[Accounts[F]] =
-        kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> F.pure(this)
+      def withAccounts(us: NonEmptyList[User]): F[Accounts[F]] =
+        us.map(initialBalance).traverse { case (k, v) => kvs.put(k, v) } >> F.pure(this)
 
       /**
         * Initial balance of 100
@@ -145,8 +146,8 @@ object Accounts {
       */
     def transactions(of: User): F[List[TransactionStage]] = F.pure(List.empty)
 
-    def withAccounts(u: User, us: User*): F[Accounts[F]] =
-      kvs.put_*(initialBalance(u), us.map(initialBalance): _*) >> F.pure(this)
+    def withAccounts(us: NonEmptyList[User]): F[Accounts[F]] =
+      us.map(initialBalance).traverse { case (k, v) => kvs.put(k, v) } >> F.pure(this)
 
     private def initialBalance(u: User): (User, Money) = {
       val m = tag[MoneyTag][Double](100)

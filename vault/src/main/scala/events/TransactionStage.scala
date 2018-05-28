@@ -197,11 +197,15 @@ object Transactions {
       *
       */
     def transfer(from: User, to: User, amount: Money): F[Unit] =
-      (accounts.balance(from), accounts.balance(to)).mapN {
-        case (currentFrom, currentTo) =>
-          kvs.put_*((from, tag[MoneyTag][Double](currentFrom - amount)),
-                    (to, tag[MoneyTag][Double](currentTo + amount)))
-      }.flatten
+      (accounts
+         .balance(from)
+         .flatMap(currentAmount => kvs.put(from, tag[MoneyTag][Double](currentAmount - amount))),
+       accounts
+         .balance(to)
+         .flatMap(currentAmount => kvs.put(to, tag[MoneyTag][Double](currentAmount + amount))))
+        .mapN {
+          case (_, _) => ()
+        }
 
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>

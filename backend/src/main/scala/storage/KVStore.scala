@@ -16,7 +16,6 @@ import scala.collection.mutable
 trait KVStore[F[_], K, V] {
   def get(k: K): F[Option[V]]
   def put(k: K, v: V): F[Unit]
-  def put_*(kv: (K, V), kvs: (K, V)*): F[Unit]
   def keys: F[Set[K]]
   def remove(k: K): F[Unit]
 }
@@ -36,10 +35,7 @@ object KVStore {
            WHERE key = $k
          """.stripMargin).map(_.headOption)
 
-      def put(k: K, v: V): F[Unit] = put_*((k, v))
-
-      def put_*(x: (K, V), xs: (K, V)*): F[Unit] =
-        db.insert(update(x._1, x._2), xs.map { case (k, v) => update(k, v) }: _*)
+      def put(k: K, v: V): F[Unit] = db.insert(update(k, v))
 
       def keys: F[Set[K]] = db.query[K](sql"""
              SELECT key
@@ -68,13 +64,6 @@ object KVStore {
     def get(k: K): F[Option[V]] = F.delay(map.get(k))
 
     def put(k: K, v: V): F[Unit] = F.delay(map.put(k, v))
-
-    def put_*(kv: (K, V), kvs: (K, V)*): F[Unit] =
-      F.delay {
-        (kv +: kvs).foreach {
-          case (k, v) => map.put(k, v)
-        }
-      }
 
     def keys: F[Set[K]] = F.delay(map.keySet.toSet)
 
