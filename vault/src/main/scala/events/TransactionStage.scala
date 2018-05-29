@@ -1,10 +1,10 @@
 package vault.events
 
-import backend.events.Event.Lsn
 import cats.{Monad, MonadError}
 import cats.effect.Effect
 import cats.implicits._
 import backend.gossip.GossipDaemon
+import backend.events._
 import fs2.{Pipe, Pull, Sink, Stream}
 import fs2.Stream.InvariantOps
 import io.circe.generic.auto._
@@ -12,7 +12,7 @@ import io.circe.refined._
 import io.circe.parser.{decode => circeDecode}
 import backend.implicits._
 import backend.storage.KVStore
-import vault.model.Account.{Money, User}
+import vault.model.{Money, User}
 import vault.model._
 import backend.gossip.Gossipable
 import backend.gossip.Gossipable.ops._

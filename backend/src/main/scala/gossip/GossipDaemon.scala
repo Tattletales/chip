@@ -3,9 +3,8 @@ package backend.gossip
 import java.io._
 
 import backend.errors.{LogRetrievalError, NodeIdError}
-import backend.events.Event._
+import backend.events._
 import backend.implicits._
-import backend.events.{EventTyper, SSEvent, Subscription, WSEvent}
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.network.HttpClient
 import eu.timepit.refined.string.Uri
@@ -18,8 +17,8 @@ import fs2.Stream
 import fs2.async.mutable.Queue
 import io.circe.generic.auto._
 import io.circe.syntax._
+import backend.network.WebSocketClient
 import io.circe.{Encoder, Json}
-import network.WebSocketClient
 import shapeless.tag
 import utils.stream.Utils.log
 
@@ -87,13 +86,7 @@ object GossipDaemon {
             }
 
       }
-
-      /**
-        * @see [[GossipDaemon.send]]
-        *
-        * Failures:
-        *   - [[SendError]] if the `e` cannot be sent.
-        */
+      
       def send(e: E): F[Unit] = {
         val form = Map(
           "t" -> E.eventType,
@@ -106,8 +99,7 @@ object GossipDaemon {
         } yield ()
       }
 
-      def subscribe: Stream[F, SSEvent] =
-        Stream.force(getNodeId.map(nodeId => subscriber.subscribe(subscribeRoute)))
+      def subscribe: Stream[F, SSEvent] = subscriber.subscribe(subscribeRoute)
 
       /**
         * @see [[GossipDaemon.getLog]]
@@ -153,13 +145,7 @@ object GossipDaemon {
             }
 
       }
-
-      /**
-        * @see [[GossipDaemon.send]]
-        *
-        * Failures:
-        *   - [[SendError]] if the `e` cannot be sent.
-        */
+      
       def send(e: E): F[Unit] = ws.send(e)
 
       def subscribe: Stream[F, WSEvent] = ws.receive

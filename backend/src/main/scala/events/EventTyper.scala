@@ -1,6 +1,5 @@
 package backend.events
 
-import backend.events.Event.EventType
 import simulacrum._
 
 /**

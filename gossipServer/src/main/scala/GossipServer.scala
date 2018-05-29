@@ -1,9 +1,9 @@
 package gossipServer
 
-import backend.events.Event.{EventIdTag, Lsn, PayloadTag}
 import backend.events.WSEvent
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.implicits._
+import backend.events._
 import cats.effect._
 import cats.implicits._
 import org.http4s._

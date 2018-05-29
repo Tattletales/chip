@@ -10,7 +10,7 @@ import fs2._
 import backend.gossip.GossipDaemon
 import backend.gossip.Node._
 import backend.storage.KVStore
-import vault.model.Account.{Money, User}
+import vault.model.{Money, User}
 import shapeless.tag
 import org.http4s.circe._
 import vault.events.TransactionStage
@@ -26,7 +26,7 @@ import cats.data.NonEmptyList
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.string.Uri
 import eu.timepit.refined.refineV
-import network.WebSocketClient
+import backend.network.WebSocketClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

@@ -9,7 +9,6 @@ import akka.stream.ActorMaterializer
 import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.Sink
 import backend.errors.MalformedSSE
-import backend.events.Event.{EventIdTag, EventTypeTag, Lsn, PayloadTag}
 import backend.gossip.Node.NodeIdTag
 import cats.ApplicativeError
 import cats.effect.Effect

@@ -14,7 +14,6 @@ import cats.data.NonEmptyList
 import vault.errors.{AccountNotFound, InsufficentFunds, TransferError, UnknownUser}
 import vault.events.Transactions.decodeAndCausalOrder
 import vault.events._
-import vault.model.Account.{Money, _}
 
 /**
   * Accounts DSL

@@ -1,7 +1,6 @@
 package vault.model
 
-import backend.events.Event.{EventType, EventTypeTag}
-import backend.events.EventTyper
+import backend.events._
 import shapeless.tag
 import vault.events.TransactionStage
 

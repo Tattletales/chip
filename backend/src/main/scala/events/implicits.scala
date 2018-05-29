@@ -1,6 +1,5 @@
 package backend.events
 
-import backend.events.Event._
 import cats.Functor
 import io.circe.{Decoder, Encoder}
 import org.http4s.EntityDecoder

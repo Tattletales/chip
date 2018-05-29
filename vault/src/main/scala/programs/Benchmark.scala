@@ -10,7 +10,7 @@ import fs2._
 import backend.gossip.Gossipable
 import vault.events.{Deposit, TransactionStage}
 import vault.events.Transactions.handleTransactionStages
-import vault.model.Account.{Money, User}
+import vault.model.{Money, User}
 import vault.model.Accounts
 
 import scala.concurrent.ExecutionContext

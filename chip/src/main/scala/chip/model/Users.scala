@@ -1,6 +1,5 @@
 package chip.model
 
-import backend.events.Event.{EventType, EventTypeTag}
 import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
@@ -13,7 +12,7 @@ import org.http4s.EntityDecoder
 import backend.storage.Database
 import shapeless.tag
 import chip.implicits._
-import backend.events.EventTyper
+import backend.events._
 import io.circe.generic.semiauto._
 import io.circe.generic.auto._
 import backend.implicits._

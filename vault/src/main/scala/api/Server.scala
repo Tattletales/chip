@@ -19,7 +19,7 @@ import org.http4s.server.blaze.BlazeBuilder
 import shapeless.tag
 import scalatags.Text.all.{body, form, _}
 import vault.events.TransactionStage
-import vault.model.Account.Money
+import vault.model.Money
 import vault.model.Accounts
 
 import scala.concurrent.ExecutionContext.Implicits.global

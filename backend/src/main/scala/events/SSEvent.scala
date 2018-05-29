@@ -1,6 +1,5 @@
 package backend.events
 
-import backend.events.Event.{EventType, Lsn, Payload}
 import backend.gossip.Gossipable
 
 /**

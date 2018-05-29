@@ -1,9 +1,9 @@
-package backend.events
+package backend
 
 import backend.gossip.Node.NodeId
 import shapeless.tag.@@
 
-object Event {
+package object events {
   sealed trait EventIdTag
   type EventId = Int @@ EventIdTag
 
