@@ -12,7 +12,7 @@ sealed trait AccountsError extends Error
 case class AccountNotFound(user: User) extends AccountsError {
   override def toString: String = s"No account for $user."
 }
-case class UnsufficentFunds(currentAmount: Money, of: User) extends Error
+case class InsufficentFunds(currentAmount: Money, of: User) extends AccountsError
 case object UnknownUser extends AccountsError
 case object TransferError extends AccountsError
 

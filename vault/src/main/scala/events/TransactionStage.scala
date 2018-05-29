@@ -5,20 +5,20 @@ import cats.{Monad, MonadError}
 import cats.effect.Effect
 import cats.implicits._
 import backend.gossip.GossipDaemon
-import shapeless.tag
 import fs2.{Pipe, Pull, Sink, Stream}
 import fs2.Stream.InvariantOps
 import io.circe.generic.auto._
+import io.circe.refined._
 import io.circe.parser.{decode => circeDecode}
-import vault.implicits._
 import backend.implicits._
 import backend.storage.KVStore
-import vault.model.Account.{Money, MoneyTag, User}
+import vault.model.Account.{Money, User}
 import vault.model._
 import backend.gossip.Gossipable
 import backend.gossip.Gossipable.ops._
+import eu.timepit.refined.api.RefType.applyRef
 import utils.stream.Utils
-import vault.errors.{MissingLsnError, PayloadDecodingError, SenderError}
+import vault.errors.{InsufficentFunds, MissingLsnError, PayloadDecodingError, SenderError}
 
 /**
   * A transaction is split into two stages: [[Withdraw]] and [[Deposit]].
@@ -37,7 +37,8 @@ object Withdraw {
     * Set the lsn to None as it is not yet known at construction time.
     * It will only become available when the [[GossipDaemon]] delivers the event with a lsn.
     */
-  def apply(from: User, to: User, amount: Money): Withdraw = Withdraw(from, to, amount, None)
+  def apply(from: User, to: User, amount: Money): Withdraw =
+    Withdraw(from, to, amount, None)
 }
 
 /**
@@ -135,7 +136,8 @@ object Transactions {
                 }
 
                 for {
-                  balanceOk <- Pull.eval(accounts.balance(from).map(_ >= depositedAmount))
+                  balanceOk <- Pull.eval(
+                    accounts.balance(from).map(_.value >= depositedAmount.value))
                   _ <- if (balanceOk) handleDeposit else Pull.done
                 } yield ()
 
@@ -161,7 +163,8 @@ object Transactions {
                 }
 
                 for {
-                  balanceOk <- Pull.eval(accounts.balance(from).map(_ >= withdrawnAmount))
+                  balanceOk <- Pull.eval(
+                    accounts.balance(from).map(_.value >= withdrawnAmount.value))
                   _ <- if (balanceOk) handleWithdraw else Pull.done
                 } yield ()
 
@@ -196,16 +199,23 @@ object Transactions {
     /**
       *
       */
-    def transfer(from: User, to: User, amount: Money): F[Unit] =
-      (accounts
-         .balance(from)
-         .flatMap(currentAmount => kvs.put(from, tag[MoneyTag][Double](currentAmount - amount))),
-       accounts
-         .balance(to)
-         .flatMap(currentAmount => kvs.put(to, tag[MoneyTag][Double](currentAmount + amount))))
-        .mapN {
-          case (_, _) => ()
-        }
+    def transfer(from: User, to: User, amount: Money): F[Unit] = {
+      val debitFrom = for {
+        currentAmount <- accounts.balance(from)
+        newAmount <- F.fromEither(applyRef[Money](currentAmount.value - amount.value).leftMap(_ =>
+          InsufficentFunds(currentAmount, from)))
+        _ <- kvs.put(from, newAmount)
+      } yield ()
+
+      val creditTo = for {
+        currentAmount <- accounts.balance(to)
+        newAmount <- F.fromEither(applyRef[Money](currentAmount.value + amount.value).leftMap(_ =>
+          InsufficentFunds(currentAmount, to)))
+        _ <- kvs.put(to, newAmount)
+      } yield ()
+
+      debitFrom *> creditTo
+    }
 
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>

@@ -6,14 +6,15 @@ import backend.storage.KVStore
 import cats.MonadError
 import cats.effect.Effect
 import cats.implicits._
+import eu.timepit.refined.api.RefType.{applyRef, applyRefM}
+import eu.timepit.refined.auto._
 import fs2.Stream
 import backend.gossip.Gossipable
 import cats.data.NonEmptyList
-import shapeless.tag
-import vault.errors.{AccountNotFound, TransferError, UnknownUser, UnsufficentFunds}
+import vault.errors.{AccountNotFound, InsufficentFunds, TransferError, UnknownUser}
 import vault.events.Transactions.decodeAndCausalOrder
 import vault.events._
-import vault.model.Account._
+import vault.model.Account.{Money, _}
 
 /**
   * Accounts DSL
@@ -56,8 +57,8 @@ object Accounts {
       /**
         * @see [[Accounts.transfer]]
         *
-        * Failures:
-        *   - [[UnsufficentFunds]] if there are not sufficient funds in the account to transfer from.
+        *      Failures:
+        *   - [[InsufficentFunds]] if there are not sufficient funds in the account to transfer from.
         *   - [[UnknownUser]] if the current user cannot be determined.
         *   - [[TransferError]] if the transfer cannot be initialized.
         */
@@ -65,7 +66,8 @@ object Accounts {
         for {
           from <- daemon.getNodeId.adaptError { case NodeIdError => UnknownUser }
 
-          _ <- balance(from).ensureOr(cAmount => UnsufficentFunds(cAmount, from))(_ >= amount)
+          _ <- balance(from).ensureOr(cAmount => InsufficentFunds(cAmount, from))(
+            _.value >= amount.value)
 
           _ <- daemon.send(Withdraw(from, to, amount)).adaptError {
             case SendError => TransferError
@@ -107,7 +109,7 @@ object Accounts {
         * Initial balance of 100
         */
       private def initialBalance(u: User): (User, Money) = {
-        val m = tag[MoneyTag][Double](100)
+        val m = applyRefM[Money](100.0)
         (u, m)
       }
     }
@@ -120,18 +122,24 @@ object Accounts {
       *
       * Warning: it does not check if there are sufficient funds in the account.
       */
-    def transfer(to: User, amount: Money): F[Unit] =
-      for {
+    def transfer(to: User, amount: Money): F[Unit] = {
+      val debitFrom = for {
         from <- daemon.getNodeId
-
         fromBalance <- balance(from)
-
-        _ <- kvs.put(from, tag[MoneyTag][Double](fromBalance - amount))
-
-        toBalance <- balance(to)
-
-        _ <- kvs.put(to, tag[MoneyTag][Double](toBalance + amount))
+        newFromBalance <- F.fromEither(
+          applyRef[Money](fromBalance.value - amount.value).leftMap(_ => InsufficentFunds(fromBalance, from)))
+        _ <- kvs.put(from, newFromBalance)
       } yield ()
+
+      val creditFrom = for {
+        toBalance <- balance(to)
+        newToBalance <- F.fromEither(
+          applyRef[Money](toBalance.value + amount.value).leftMap(_ => InsufficentFunds(toBalance, to)))
+        _ <- kvs.put(to, newToBalance)
+      } yield ()
+
+      debitFrom *> creditFrom
+    }
 
     /**
       * Balance of the given user's accounts.
@@ -150,7 +158,7 @@ object Accounts {
       us.map(initialBalance).traverse { case (k, v) => kvs.put(k, v) } >> F.pure(this)
 
     private def initialBalance(u: User): (User, Money) = {
-      val m = tag[MoneyTag][Double](100)
+      val m = applyRefM[Money](100.0)
       (u, m)
     }
   }

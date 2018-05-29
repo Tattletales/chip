@@ -8,6 +8,8 @@ import fs2.Stream
 import fs2.StreamApp.ExitCode
 import backend.gossip.GossipDaemon
 import backend.gossip.Node.{NodeId, NodeIdTag}
+import cats.ApplicativeError
+import eu.timepit.refined.api.RefType.applyRef
 import io.circe._
 import org.http4s.MediaType._
 import org.http4s._
@@ -17,7 +19,7 @@ import org.http4s.server.blaze.BlazeBuilder
 import shapeless.tag
 import scalatags.Text.all.{body, form, _}
 import vault.events.TransactionStage
-import vault.model.Account.{Money, MoneyTag}
+import vault.model.Account.Money
 import vault.model.Accounts
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -200,12 +202,13 @@ object Server {
             // TODO: Do not fail silently
             val to = tag[NodeIdTag][String](
               data.values.get(beneficiaryFieldId).map(_.foldRight("")(_ + _)).getOrElse(""))
-            val amount = tag[MoneyTag][Double](
+            val amount = implicitly[ApplicativeError[F, Throwable]].fromEither(applyRef[Money](
               data.values.get(amountFieldId).map(_.foldRight("")(_ + _)).getOrElse("0.0").toDouble)
+              .leftMap(_ => new IllegalArgumentException("Transfer amount should be positive.")))
 
             for {
-              _ <- accounts.transfer(to, amount)
-              response <- okResp(transferPage(to, amount))
+              amount <- amount
+              response <- accounts.transfer(to, amount) *> okResp(transferPage(to, amount))
             } yield response
           }
 

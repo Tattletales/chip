@@ -4,6 +4,7 @@ import backend.errors.MalformedUriError
 import backend.events.WSEvent
 import cats.effect.{Effect, IO, Timer}
 import io.circe.generic.auto._
+import io.circe.refined._
 import fs2.StreamApp.ExitCode
 import fs2._
 import backend.gossip.GossipDaemon

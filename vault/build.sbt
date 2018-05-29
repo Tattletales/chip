@@ -19,6 +19,7 @@ libraryDependencies ++= Seq(
   "io.circe" %%% "circe-generic" % circeVersion,
   "io.circe" %%% "circe-literal" % circeVersion,
   "io.circe" %%% "circe-parser" % circeVersion,
+  "io.circe" %%% "circe-refined" % circeVersion,
   compilerPlugin(("org.scalamacros" % "paradise" % "2.1.1").cross(CrossVersion.full)),
   compilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
   compilerPlugin(("org.scalameta" % "paradise" % "3.0.0-M11").cross(CrossVersion.full)),

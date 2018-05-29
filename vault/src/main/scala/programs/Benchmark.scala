@@ -5,12 +5,12 @@ import backend.storage.KVStore
 import cats.Applicative
 import cats.effect.Effect
 import cats.implicits._
+import eu.timepit.refined.api.RefType.applyRefM
 import fs2._
 import backend.gossip.Gossipable
-import shapeless.tag
 import vault.events.{Deposit, TransactionStage}
 import vault.events.Transactions.handleTransactionStages
-import vault.model.Account.{Money, MoneyTag, User}
+import vault.model.Account.{Money, User}
 import vault.model.Accounts
 
 import scala.concurrent.ExecutionContext
@@ -30,7 +30,7 @@ object Benchmark {
         val start = Stream.eval {
           daemon.getNodeId
             .map(_ == users.head)
-            .ifM(accounts.transfer(users(1 % users.size), tag[MoneyTag][Double](0.001)),
+            .ifM(accounts.transfer(users(1 % users.size), applyRefM[Money](0.001)),
                  implicitly[Effect[F]].unit)
 
         }
@@ -41,7 +41,7 @@ object Benchmark {
               .map(_ == from)
               .ifM({
                 val toIndex = users.indexOf(to)
-                accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
+                accounts.transfer(users((toIndex + 1) % users.size), applyRefM[Money](0.001))
               }, implicitly[Effect[F]].unit)
         }
 
@@ -67,7 +67,7 @@ object Benchmark {
           shuffledUsers <- Stream(Random.shuffle(users.filter(_ != me))).covary[F]
           _ <- Stream.repeatEval {
             shuffledUsers
-              .traverse(user => accounts.transfer(user, tag[MoneyTag][Double](0.001)))
+              .traverse(user => accounts.transfer(user, applyRefM[Money](0.001)))
               .map(_ => ())
           }
         } yield ()
@@ -92,7 +92,7 @@ object Benchmark {
         val start = Stream.eval(for {
           me <- daemon.getNodeId
           first = (users.indexOf(me) + 1) % users.size
-          _ <- accounts.transfer(users(first), tag[MoneyTag][Double](0.001))
+          _ <- accounts.transfer(users(first), applyRefM[Money](0.001))
         } yield ())
 
         def next(deposit: Deposit): F[Unit] = deposit match {
@@ -101,7 +101,7 @@ object Benchmark {
               .map(_ == from)
               .ifM({
                 val toIndex = users.indexOf(to)
-                accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
+                accounts.transfer(users((toIndex + 1) % users.size), applyRefM[Money](0.001))
               }, implicitly[Effect[F]].unit)
         }
 
@@ -124,7 +124,7 @@ object Benchmark {
         val start = Stream.eval {
           daemon.getNodeId
             .map(_ == users.head)
-            .ifM(accounts.transfer(users(1 % users.size), tag[MoneyTag][Double](0.001)),
+            .ifM(accounts.transfer(users(1 % users.size), applyRefM[Money](0.001)),
                  implicitly[Effect[F]].unit)
         }
 
@@ -134,7 +134,7 @@ object Benchmark {
               .map(_ == to)
               .ifM({
                 val toIndex = users.indexOf(to)
-                accounts.transfer(users((toIndex + 1) % users.size), tag[MoneyTag][Double](0.001))
+                accounts.transfer(users((toIndex + 1) % users.size), applyRefM[Money](0.001))
               }, implicitly[Effect[F]].unit)
         }
 
