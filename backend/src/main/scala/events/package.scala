@@ -1,6 +1,7 @@
 package backend
 
 import backend.gossip.Node.NodeId
+import io.circe.Json
 import shapeless.tag.@@
 
 package object events {
@@ -11,7 +12,7 @@ package object events {
   type EventType = String @@ EventTypeTag
 
   sealed trait PayloadTag
-  type Payload = String @@ PayloadTag
+  type Payload = Json @@ PayloadTag
 
   case class Lsn(nodeId: NodeId, eventId: EventId)
 }

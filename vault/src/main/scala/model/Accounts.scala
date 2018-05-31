@@ -126,14 +126,15 @@ object Accounts {
         from <- daemon.getNodeId
         fromBalance <- balance(from)
         newFromBalance <- F.fromEither(
-          applyRef[Money](fromBalance.value - amount.value).leftMap(_ => InsufficentFunds(fromBalance, from)))
+          applyRef[Money](fromBalance.value - amount.value).leftMap(_ =>
+            InsufficentFunds(fromBalance, from)))
         _ <- kvs.put(from, newFromBalance)
       } yield ()
 
       val creditFrom = for {
         toBalance <- balance(to)
-        newToBalance <- F.fromEither(
-          applyRef[Money](toBalance.value + amount.value).leftMap(_ => InsufficentFunds(toBalance, to)))
+        newToBalance <- F.fromEither(applyRef[Money](toBalance.value + amount.value).leftMap(_ =>
+          InsufficentFunds(toBalance, to)))
         _ <- kvs.put(to, newToBalance)
       } yield ()
 

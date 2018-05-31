@@ -56,8 +56,8 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         client <- Http1Client.stream()
         httpClient = HttpClient.default(client)
 
-        incoming <- Stream.eval(async.unboundedQueue[F, String])
-        outgoing <- Stream.eval(async.unboundedQueue[F, String])
+        incoming <- Stream.eval(async.unboundedQueue[F, WSEvent])
+        outgoing <- Stream.eval(async.unboundedQueue[F, TransactionStage])
 
         wsRoute <- Stream.eval(checkUri(uncheckedWsRoute))
 

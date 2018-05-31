@@ -2,8 +2,7 @@ package backend.errors
 
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import utils.error.Error
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.string.Uri
+import backend.network._
 
 /**
   * Daemon related errors
@@ -26,4 +25,4 @@ case class MalformedSSE(sse: ServerSentEvent) extends SubscriberError
   */
 sealed trait HttpClientError extends Error
 case class MalformedUriError(uri: String, m: String) extends HttpClientError
-case class FailedRequestResponse(uri: String Refined Uri) extends HttpClientError
+case class FailedRequestResponse(uri: Uri) extends HttpClientError

@@ -9,7 +9,6 @@ import fs2.{Pipe, Pull, Sink, Stream}
 import fs2.Stream.InvariantOps
 import io.circe.generic.auto._
 import io.circe.refined._
-import io.circe.parser.{decode => circeDecode}
 import backend.implicits._
 import backend.storage.KVStore
 import vault.model.{Money, User}
@@ -84,7 +83,7 @@ object Transactions {
       implicit F: MonadError[F, Throwable]): Pipe[F, E, TransactionStage] = {
     def convert(e: E): F[TransactionStage] =
       for {
-        event <- F.fromEither(circeDecode[TransactionStage](e.payload)).adaptError {
+        event <- F.fromEither(e.payload.as[TransactionStage]).adaptError {
           case _ => PayloadDecodingError(e.payload)
         }
 

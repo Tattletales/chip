@@ -59,7 +59,7 @@ object KVStore {
     * `F` and can be sequenced appropriately.
     */
   def mutableMap[F[_], K, V](implicit F: Sync[F]): KVStore[F, K, V] = new KVStore[F, K, V] {
-    val map = mutable.Map.empty[K, V]
+    private val map = mutable.Map.empty[K, V]
 
     def get(k: K): F[Option[V]] = F.delay(map.get(k))
 

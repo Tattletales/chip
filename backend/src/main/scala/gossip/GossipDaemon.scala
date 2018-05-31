@@ -6,19 +6,17 @@ import backend.errors.{LogRetrievalError, NodeIdError}
 import backend.events._
 import backend.implicits._
 import backend.gossip.Node.{NodeId, NodeIdTag}
-import backend.network.HttpClient
-import eu.timepit.refined.string.Uri
+import backend.network.{HttpClient, Route, WebSocketClient}
 import cats.arrow.Profunctor
 import cats.effect.{Effect, Sync}
 import cats.implicits._
 import cats.{Functor, MonadError}
-import eu.timepit.refined.api.Refined
-import fs2.Stream
+import fs2.{Pipe, Stream}
 import fs2.async.mutable.Queue
 import io.circe.generic.auto._
 import io.circe.syntax._
-import backend.network.WebSocketClient
-import io.circe.{Encoder, Json}
+import io.circe.{Decoder, Encoder, Json}
+import io.circe.fs2._
 import shapeless.tag
 import utils.stream.Utils.log
 
@@ -59,11 +57,10 @@ object GossipDaemon {
     * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with
     * events gossiped using ServerSentEvents.
     */
-  def serverSentEvent[F[_], E: Encoder](
-      nodeIdRoute: String Refined Uri,
-      sendRoute: String Refined Uri,
-      subscribeRoute: String Refined Uri,
-      logRoute: String Refined Uri)(nodeId: Option[NodeId] = None)(
+  def serverSentEvent[F[_], E: Encoder](nodeIdRoute: Route,
+                                        sendRoute: Route,
+                                        subscribeRoute: Route,
+                                        logRoute: Route)(nodeId: Option[NodeId] = None)(
       httpClient: HttpClient[F],
       subscriber: Subscription[F, SSEvent])(implicit F: MonadError[F, Throwable],
                                             E: EventTyper[E]): GossipDaemon[F, E, SSEvent] =
@@ -86,7 +83,7 @@ object GossipDaemon {
             }
 
       }
-      
+
       def send(e: E): F[Unit] = {
         val form = Map(
           "t" -> E.eventType,
@@ -122,7 +119,62 @@ object GossipDaemon {
     * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with events
     * gossiped using WebSockets.
     */
-  def webSocket[F[_], E: Encoder](nodeIdRoute: String Refined Uri, logRoute: String Refined Uri)(
+  def webSocket1[F[_], E1: Encoder: Decoder](nodeIdRoute: Route, logRoute: Route)(
+      nodeId: Option[NodeId] = None,
+      ordering: Pipe[F, WSEvent, WSEvent])(httpClient: HttpClient[F],
+                                           ws: WebSocketClient[F, E1, WSEvent])(
+      implicit F: MonadError[F, Throwable],
+      E: EventTyper[E1]): GossipDaemon[F, E1, E1] =
+    new GossipDaemon[F, E1, E1] {
+      // last event (delivered or sent)
+
+      /**
+        * @see [[GossipDaemon.getNodeId]]
+        *
+        * Failures:
+        *   - [[NodeIdError]] if the node id cannot be retrieved.
+        */
+      def getNodeId: F[NodeId] = nodeId match {
+        case Some(nodeId) => F.pure(nodeId)
+        case None =>
+          httpClient
+            .getRaw(nodeIdRoute)
+            .map(tag[NodeIdTag][String])
+            .adaptError {
+              case _ => NodeIdError
+            }
+
+      }
+
+      def send(e: E1): F[Unit] = ws.send(e)
+
+      def subscribe: Stream[F, E1] =
+        ws.receive.through(ordering).map(_.payload).through(decoder[F, E1])
+
+      /**
+        * @see [[GossipDaemon.getLog]]
+        *
+        * Failures:
+        *   - [[LogRetrievalError]] if the log cannot be retrieved.
+        */
+      def getLog: F[List[E1]] =
+        httpClient
+          .get[Json](logRoute)
+          .flatMap { json =>
+            F.fromEither(json.as[List[E1]])
+          }
+          .adaptError {
+            case _ => LogRetrievalError
+          }
+
+      case class CausalEvent(dependsOn: Lsn, payload: E1)
+    }
+
+  /**
+    * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with events
+    * gossiped using WebSockets.
+    */
+  def webSocket[F[_], E: Encoder](nodeIdRoute: Route, logRoute: Route)(
       nodeId: Option[NodeId] = None)(httpClient: HttpClient[F], ws: WebSocketClient[F, E, WSEvent])(
       implicit F: MonadError[F, Throwable],
       E: EventTyper[E]): GossipDaemon[F, E, WSEvent] =
@@ -145,7 +197,7 @@ object GossipDaemon {
             }
 
       }
-      
+
       def send(e: E): F[Unit] = ws.send(e)
 
       def subscribe: Stream[F, WSEvent] = ws.receive
@@ -228,7 +280,7 @@ object GossipDaemon {
         eventQueue.enqueue1(
           SSEvent(Lsn(tag[NodeIdTag][String]("MyOwnKey"), tag[EventIdTag][Int](123)),
                   E.eventType,
-                  tag[PayloadTag][String](e.asJson.noSpaces)))
+                  tag[PayloadTag][Json](e.asJson)))
 
       def subscribe: Stream[F, SSEvent] = eventQueue.dequeue.through(log("New event"))
 

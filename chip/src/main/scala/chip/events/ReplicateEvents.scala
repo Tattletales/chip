@@ -4,7 +4,6 @@ import cats.effect.Effect
 import cats.implicits._
 import backend.events.{EventTypable, EventTyper}
 import io.circe.Decoder
-import io.circe.parser.decode
 import shapeless.{::, HList, HNil}
 import simulacrum._
 import backend.storage.Database
@@ -37,7 +36,7 @@ object ReplicateEvents {
 
       def replicate[F[_]](db: Database[F])(event: Event)(implicit F: Effect[F]): F[Unit] =
         if (event.eventType == head.eventType) {
-          F.fromEither(decode[E](event.payload))
+          F.fromEither(event.payload.as[E])
             .flatMap(replicable.replicate(db))
         } else tail.replicate(db)(event)
     }

@@ -10,13 +10,15 @@ import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.Sink
 import backend.errors.MalformedSSE
 import backend.gossip.Node.NodeIdTag
-import cats.ApplicativeError
+import cats.data.OptionT
 import cats.effect.Effect
 import cats.implicits._
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.string.Uri
 import fs2.interop.reactivestreams._
 import fs2.{Pipe, Stream}
+import io.circe.Json
+import io.circe.jawn._
 import shapeless.tag
 
 import scala.concurrent.ExecutionContext
@@ -41,7 +43,7 @@ object Subscription {
   /**
     * Interpreter to an `AkkaHTTP` server sent system
     */
-  def serverSentEvent[F[_]: Effect]: Subscription[F, SSEvent] =
+  def serverSentEvent[F[_]](implicit F: Effect[F]): Subscription[F, SSEvent] =
     new Subscription[F, SSEvent] {
       implicit val system: ActorSystem = ActorSystem()
       implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -75,19 +77,19 @@ object Subscription {
         * Fails with [[MalformedSSE]] if there's [[ServerSentEvent]] that cannot be decoded.
         * For instance, it doesn't have an event type or the id is not to specs ("nodeId-eventId").
         */
-      private def convert(
-          implicit F: ApplicativeError[F, Throwable]): Pipe[F, ServerSentEvent, SSEvent] =
+      private val convert: Pipe[F, ServerSentEvent, SSEvent] =
         _.evalMap { sse =>
           val maybeEvent = for {
-            eventType <- sse.eventType
-            id <- sse.id
+            eventType <- OptionT.fromOption[F](sse.eventType)
+            id <- OptionT.fromOption[F](sse.id)
             Array(nodeId, eventId) = id.split("-")
+            payload <- OptionT.liftF(F.fromEither(parse(sse.data)).map(tag[PayloadTag][Json]))
           } yield
             SSEvent(Lsn(tag[NodeIdTag][String](nodeId), tag[EventIdTag][Int](eventId.toInt)),
                     tag[EventTypeTag][String](eventType),
-                    tag[PayloadTag][String](sse.data))
+                    payload)
 
-          F.fromOption(maybeEvent, MalformedSSE(sse))
+          maybeEvent.value.flatMap(F.fromOption(_, MalformedSSE(sse)))
         }
     }
 }

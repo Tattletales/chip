@@ -12,8 +12,10 @@ import backend.storage.KVStore
 import fs2.{Pipe, Sink}
 import fs2.async.Ref
 import fs2.async.mutable.Queue
+import io.circe.Json
 import shapeless.tag
 import io.circe.syntax._
+import io.circe.jawn._
 import io.circe.generic.auto._
 import org.http4s.ServerSentEvent.EventId
 import org.http4s.server.websocket.WebSocketBuilder
@@ -107,8 +109,8 @@ object GossipServer {
               eventId <- eventIds(tag[NodeIdTag][String](nodeId)).get
               _ <- eventIds(tag[NodeIdTag][String](nodeId)).setSync(eventId + 1)
 
-              event = WSEvent(Lsn(nodeId, tag[EventIdTag][Int](eventId)),
-                              tag[PayloadTag][String](payload))
+              payload <- F.fromEither(parse(payload)).map(tag[PayloadTag][Json])
+              event = WSEvent(Lsn(nodeId, tag[EventIdTag][Int](eventId)), payload)
 
               _ <- addToLogs(event)
               _ <- addToQueues(event)
