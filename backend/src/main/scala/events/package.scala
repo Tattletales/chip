@@ -1,6 +1,7 @@
 package backend
 
 import backend.gossip.Node.NodeId
+import cats.effect.Effect
 import io.circe.Json
 import shapeless.tag.@@
 
@@ -15,4 +16,6 @@ package object events {
   type Payload = Json @@ PayloadTag
 
   case class Lsn(nodeId: NodeId, eventId: EventId)
+
+  def subscription[F[_]: Effect]: Subscription[F, SSEvent] = Subscription.serverSentEvent
 }

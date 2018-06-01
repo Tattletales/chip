@@ -1,8 +1,8 @@
 package chip
 
 import backend.events.SSEvent
-import backend.gossip.GossipDaemon
-import backend.storage.Database
+import backend.gossip._
+import backend.storage._
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import chip.api.Server
@@ -28,7 +28,7 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
       for {
         eventQueue <- Stream.eval(async.unboundedQueue[F, SSEvent])
 
-        db: Database[F] = Database.doobie[F](xa)
+        db = database(xa)
 
         daemon = GossipDaemon.sseMock[F, ChipEvent](eventQueue)
 

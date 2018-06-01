@@ -3,13 +3,16 @@ package vault
 import backend.errors.MalformedUriError
 import backend.events.WSEvent
 import cats.effect.{Effect, IO, Timer}
+import cats.implicits._
 import io.circe.generic.auto._
 import io.circe.refined._
 import fs2.StreamApp.ExitCode
 import fs2._
-import backend.gossip.GossipDaemon
+import backend.gossip._
 import backend.gossip.Node._
-import backend.storage.KVStore
+import backend.storage._
+import backend.network._
+import backend.events._
 import vault.model.{Money, User}
 import shapeless.tag
 import org.http4s.circe._
@@ -20,12 +23,11 @@ import backend.implicits._
 import backend.network.HttpClient
 import org.http4s.client.blaze.Http1Client
 import vault.api.Server
-import vault.model.Accounts
+import vault.model._
 import cats.{Applicative, MonadError}
 import cats.data.NonEmptyList
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.string.Uri
 import eu.timepit.refined.refineV
+import eu.timepit.refined.api.RefType.applyRef
 import backend.network.WebSocketClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -45,43 +47,35 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         }
         .map(_.toInt)
 
-      def checkUri(uri: String)(implicit F: MonadError[F, Throwable]): F[String Refined Uri] =
-        F.fromEither(refineV[Uri](uri).left.map(m => MalformedUriError(uri, m)))
+      def checkUri(uri: String)(implicit F: MonadError[F, Throwable]): F[Uri] =
+        F.fromEither(applyRef[Uri](uri).left.map(m => MalformedUriError(uri, m)))
 
       val uncheckedWsRoute = s"ws://localhost:59234/events/${nodeIds.head}"
       val uncheckedNodeIdRoute = s"http://localhost:59234/unique/${nodeIds.head}"
       val uncheckedLogRoute = s"http://localhost:59234/log/${nodeIds.head}"
 
       for {
-        client <- Http1Client.stream()
-        httpClient = HttpClient.default(client)
+        httpClient <- httpClient
 
-        incoming <- Stream.eval(async.unboundedQueue[F, WSEvent])
-        outgoing <- Stream.eval(async.unboundedQueue[F, TransactionStage])
+        wsClient <- Stream.eval(
+          checkUri(uncheckedWsRoute).flatMap(webSocketClient[F, TransactionStage, WSEvent]))
 
-        wsRoute <- Stream.eval(checkUri(uncheckedWsRoute))
+        daemon <- Stream.eval((checkUri(uncheckedNodeIdRoute), checkUri(uncheckedLogRoute)).mapN {
+          case (nodeIdRoute, logRoute) =>
+            gossipDaemon(nodeIdRoute, logRoute)(nodeIds.headOption)(httpClient, wsClient)
+        })
 
-        wsClient = WebSocketClient.akkaHttp[F, TransactionStage, WSEvent](wsRoute)(incoming,
-                                                                                   outgoing)
+        loggingDaemon = logToFile("test")(daemon)
 
-        nodeIdRoute <- Stream.eval(checkUri(uncheckedNodeIdRoute))
-        logRoute <- Stream.eval(checkUri(uncheckedLogRoute))
-
-        daemon0 = GossipDaemon.webSocket[F, TransactionStage](nodeIdRoute, logRoute)(
-          nodeIds.headOption)(httpClient, wsClient)
-        daemon = GossipDaemon.logging[F, TransactionStage, WSEvent]("test")(daemon0)
-
-        kvs = KVStore.mutableMap[F, User, Money]
+        kvs = keyValueStore[F, User, Money]
 
         accounts <- Stream.eval(
-          Accounts
-            .default[F, WSEvent](daemon, kvs)
-            .withAccounts(NonEmptyList.fromListUnsafe(nodeIds)))
+          accounts(loggingDaemon, kvs).withAccounts(NonEmptyList.fromListUnsafe(nodeIds)))
 
-        handler = daemon.subscribe.through(
-          handleTransactionStages(_ => implicitly[Applicative[F]].unit)(daemon, kvs, accounts))
+        handler = daemon.subscribe.through(handleTransactionStages(_ =>
+          implicitly[Applicative[F]].unit)(loggingDaemon, kvs, accounts))
 
-        server = Server.authed(accounts, daemon, frontend_port).run
+        server = Server.authed(accounts, loggingDaemon, frontend_port).run
         //server = Benchmark.random(nodeIds)(kvs, accounts, daemon).run
 
         ec <- Stream(server, handler).join(2).drain ++ Stream.emit(ExitCode.Success)
