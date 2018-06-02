@@ -5,7 +5,6 @@ import cats.implicits._
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.string.{Uri => RefUri}
 import io.circe.{Decoder, Encoder}
-import org.http4s.client.Client
 import org.http4s.client.blaze.Http1Client
 import fs2.Stream
 

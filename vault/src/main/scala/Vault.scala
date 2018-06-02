@@ -1,6 +1,5 @@
 package vault
 
-import backend.errors.MalformedUriError
 import backend.events.WSEvent
 import cats.effect.{Effect, IO, Timer}
 import cats.implicits._
@@ -9,26 +8,27 @@ import io.circe.refined._
 import fs2.StreamApp.ExitCode
 import fs2._
 import backend.gossip._
-import backend.gossip.Node._
 import backend.storage._
 import backend.network._
+import backend.implicits._
 import backend.events._
 import vault.model.{Money, User}
-import shapeless.tag
 import org.http4s.circe._
 import vault.events.TransactionStage
 import vault.events.Transactions.handleTransactionStages
 import vault.implicits._
 import backend.implicits._
-import backend.network.HttpClient
-import org.http4s.client.blaze.Http1Client
 import vault.api.Server
 import vault.model._
-import cats.{Applicative, MonadError}
-import cats.data.NonEmptyList
-import eu.timepit.refined.refineV
+import cats.Applicative
 import eu.timepit.refined.api.RefType.applyRef
-import backend.network.WebSocketClient
+import eu.timepit.refined.pureconfig._
+import config._
+import pureconfig._
+import pureconfig.module.cats._
+import eu.timepit.refined.auto._
+import eu.timepit.refined.pureconfig._
+import vault.programs.Benchmark
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -37,48 +37,54 @@ object VaultApp extends Vault[IO]
 class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
-      val nodes = args.headOption.map(_.toInt)
-      val nodeIds = nodes.map(ns => args.slice(1, 1 + ns).map(tag[NodeIdTag][String])).get
-      val frontend_port = nodes
-        .map { ns =>
-          if (args.length > ns + 1)
-            args(ns + 1)
-          else "8080"
-        }
+      if (args.isEmpty) throw new IllegalArgumentException("The node number needs to be provided!")
+
+      val nodeNumber = args.headOption
         .map(_.toInt)
+        .getOrElse(throw new IllegalArgumentException("The node number needs to be provided!"))
 
-      def checkUri(uri: String)(implicit F: MonadError[F, Throwable]): F[Uri] =
-        F.fromEither(applyRef[Uri](uri).left.map(m => MalformedUriError(uri, m)))
+      val conf = loadConfigOrThrow[VaultConfig]("vault")
 
-      val uncheckedWsRoute = s"ws://localhost:59234/events/${nodeIds.head}"
-      val uncheckedNodeIdRoute = s"http://localhost:59234/unique/${nodeIds.head}"
-      val uncheckedLogRoute = s"http://localhost:59234/log/${nodeIds.head}"
+      val nodeId = conf.nodeIds
+        .get(nodeNumber)
+        .getOrElse(
+          throw new IllegalArgumentException(s"No node id corresponding to node #$nodeNumber."))
+
+      val webSocketRouteWithNodeId =
+        applyRef[Route](conf.webSocketRoute.value ++ s"/$nodeId").right.get
+      val nodeIdRouteWithNodeId = applyRef[Route](conf.nodeIdRoute.value ++ s"/$nodeId").right.get
+      val logRouteWithNodeId = applyRef[Route](conf.logRoute.value ++ s"/$nodeId").right.get
+
+      val frontendPort = 8080 + nodeNumber
 
       for {
         httpClient <- httpClient
 
         wsClient <- Stream.eval(
-          checkUri(uncheckedWsRoute).flatMap(webSocketClient[F, TransactionStage, WSEvent]))
+          webSocketClient[F, TransactionStage, WSEvent](webSocketRouteWithNodeId))
 
-        daemon <- Stream.eval((checkUri(uncheckedNodeIdRoute), checkUri(uncheckedLogRoute)).mapN {
-          case (nodeIdRoute, logRoute) =>
-            gossipDaemon(nodeIdRoute, logRoute)(nodeIds.headOption)(httpClient, wsClient)
-        })
+        daemon = gossipDaemon(nodeIdRouteWithNodeId, logRouteWithNodeId)(
+          conf.nodeIds
+            .get(nodeNumber)
+            .getOrElse(throw new IllegalArgumentException(
+              s"No node id corresponding to node #$nodeNumber.")))(httpClient, wsClient)
 
         loggingDaemon = logToFile("test")(daemon)
 
         kvs = keyValueStore[F, User, Money]
 
-        accounts <- Stream.eval(
-          accounts(loggingDaemon, kvs).withAccounts(NonEmptyList.fromListUnsafe(nodeIds)))
+        accounts <- Stream.eval(accounts(loggingDaemon, kvs).withAccounts(conf.nodeIds))
 
         handler = daemon.subscribe.through(handleTransactionStages(_ =>
           implicitly[Applicative[F]].unit)(loggingDaemon, kvs, accounts))
 
-        server = Server.authed(accounts, loggingDaemon, frontend_port).run
-        //server = Benchmark.random(nodeIds)(kvs, accounts, daemon).run
+        program = conf.benchmark match {
+          case Some(benchmark) =>
+            Benchmark[F, WSEvent](benchmark)(conf.nodeIds)(kvs, accounts, loggingDaemon).run
+          case None => Server.authed(accounts, loggingDaemon, Some(frontendPort)).run
+        }
 
-        ec <- Stream(server, handler).join(2).drain ++ Stream.emit(ExitCode.Success)
+        ec <- Stream(program, handler).join(2).drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 

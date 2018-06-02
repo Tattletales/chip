@@ -5,6 +5,7 @@ import backend.gossip.Node.{NodeId, NodeIdTag}
 import cats.Functor
 import io.circe.{Decoder, Encoder}
 import org.http4s.EntityDecoder
+import pureconfig.ConfigReader
 import shapeless.tag
 
 trait implicits {
@@ -20,4 +21,7 @@ trait implicits {
   implicit def nodeIdEntityDecoder[F[_]: Functor](
       implicit D: EntityDecoder[F, String]): EntityDecoder[F, NodeId] =
     D.map(tag[NodeIdTag][String])
+
+  implicit def nodeIdConfigReader(implicit R: ConfigReader[String]): ConfigReader[NodeId] =
+    R.map(tag[NodeIdTag][String])
 }

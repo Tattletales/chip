@@ -8,23 +8,41 @@ import cats.implicits._
 import eu.timepit.refined.api.RefType.applyRefM
 import fs2._
 import backend.gossip.Gossipable
+import cats.data.NonEmptyList
 import vault.events.{Deposit, TransactionStage}
 import vault.events.Transactions.handleTransactionStages
 import vault.model.{Money, User}
 import vault.model.Accounts
 
-import scala.concurrent.ExecutionContext
-import scala.util.Random
+import scala.util.{Random => ScalaRandom}
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
+sealed trait Benchmark
+case object LoneSender extends Benchmark
+case object Random extends Benchmark
+case object LocalRoundRobin extends Benchmark
+case object RoundRobin extends Benchmark
 
 object Benchmark {
+  def apply[F[_]: Effect, E: Gossipable](benchmark: Benchmark)(users: NonEmptyList[User])(
+      kvs: KVStore[F, User, Money],
+      accounts: Accounts[F],
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
+    benchmark match {
+      case LoneSender      => loneSender(users.toList)(kvs, accounts, daemon)
+      case Random          => random(users.toList)(kvs, accounts, daemon)
+      case LocalRoundRobin => localRoundRobin(users.toList)(kvs, accounts, daemon)
+      case RoundRobin      => roundRobin(users.toList)(kvs, accounts, daemon)
+    }
 
   /**
     * The head of `users` sends money to each user, one by one after the previous transaction has succeeded.
     */
-  def loneSender[F[_]: Effect, E: Gossipable](users: Vector[User])(
+  private def loneSender[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
     new Program[F] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval {
@@ -56,15 +74,15 @@ object Benchmark {
     * Infinitely transfer money to the other users. The order is random but each
     * user will receive transactions one after each other.
     */
-  def random[F[_]: Effect, E: Gossipable](users: List[User])(
+  private def random[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
     new Program[F] {
       def run: Stream[F, Unit] = {
         val benchmark = for {
           me <- Stream.eval(daemon.getNodeId)
-          shuffledUsers <- Stream(Random.shuffle(users.filter(_ != me))).covary[F]
+          shuffledUsers <- Stream(ScalaRandom.shuffle(users.filter(_ != me))).covary[F]
           _ <- Stream.repeatEval {
             shuffledUsers
               .traverse(user => accounts.transfer(user, applyRefM[Money](0.001)))
@@ -83,10 +101,10 @@ object Benchmark {
     * Infinitely transfer at the user after itself in the list.
     * When the transaction succeeds, transfer money to the next user, and so on...
     */
-  def localRoundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
+  private def localRoundRobin[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
     new Program[F] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval(for {
@@ -115,10 +133,10 @@ object Benchmark {
   /**
     * Infinitely transfer money from one user to the other.
     */
-  def roundRobin[F[_]: Effect, E: Gossipable](users: Vector[User])(
+  private def roundRobin[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E])(implicit ec: ExecutionContext): Program[F] =
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
     new Program[F] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval {

@@ -44,5 +44,6 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
   "com.typesafe" % "config" % "1.3.2",
-  "eu.timepit" %% "refined" % "0.9.0"
+  "eu.timepit" %% "refined" % "0.9.0",
+  "eu.timepit" %% "refined-pureconfig" % "0.9.0"
 )
