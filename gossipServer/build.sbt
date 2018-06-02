@@ -44,5 +44,6 @@ libraryDependencies ++= Seq(
   "org.reactormonk" %% "cryptobits" % "1.1",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
-  "com.typesafe" % "config" % "1.3.2"
+  "com.github.pureconfig" %% "pureconfig" % "0.9.1",
+  "com.github.pureconfig" %% "pureconfig-cats" % "0.9.1"
 )

@@ -1,14 +1,20 @@
 package gossipServer
 
 import backend.events.WSEvent
-import backend.gossip.Node.{NodeId, NodeIdTag}
+import backend.gossip.Node.NodeId
 import backend.storage.KVStore
+import backend.implicits._
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import fs2.StreamApp.ExitCode
 import fs2.{Stream, StreamApp, async}
 import org.http4s.server.blaze.BlazeBuilder
-import shapeless.tag
+import eu.timepit.refined.pureconfig._
+import pureconfig._
+import pureconfig.module.cats._
+import eu.timepit.refined.auto._
+import eu.timepit.refined.pureconfig._
+import gossipServer.config.ServerConfig
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -17,23 +23,21 @@ object ServerApp extends Server[IO]
 
 class Server[F[_]: Effect] extends StreamApp[F] {
   override def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] = {
-    val nodes = args(0).toInt
-    val nodeNames = args.slice(1, 1 + nodes).map(tag[NodeIdTag][String])
+    val conf = loadConfigOrThrow[ServerConfig]("server")
 
-    val eventQueues = nodeNames
-      .traverse(_ => async.unboundedQueue[F, WSEvent])
-      .map(nodeNames.zip(_).toMap)
+    val eventQueues = conf.nodeIds
+      .traverse(nodeId => async.unboundedQueue[F, WSEvent].map((nodeId, _)))
+      .map(_.toList.toMap)
 
-    val eventIds = nodeNames
-      .traverse(_ => async.refOf[F, Int](0))
-      .map(nodeNames.zip(_).toMap)
+    val eventIds =
+      conf.nodeIds.traverse(nodeId => async.refOf[F, Int](0).map((nodeId, _))).map(_.toList.toMap)
 
     for {
       eventQueues <- Stream.eval(eventQueues)
       eventIds <- Stream.eval(eventIds)
       store = KVStore.mutableMap[F, NodeId, List[WSEvent]]
-      _ <- Stream.eval(nodeNames.traverse(store.put(_, List.empty)))
-      service = GossipServer.webSocket(nodeNames)(eventQueues, eventIds, store).service
+      _ <- Stream.eval(conf.nodeIds.traverse(store.put(_, List.empty)))
+      service = GossipServer.webSocket(eventQueues, eventIds, store).service
 
       server <- BlazeBuilder[F]
         .withIdleTimeout(Duration.Inf)

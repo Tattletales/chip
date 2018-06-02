@@ -80,7 +80,7 @@ object GossipServer {
         } yield ()
     }
 
-  def webSocket[F[_]](nodes: List[String])(
+  def webSocket[F[_]](
       eventQueues: Map[NodeId, Queue[F, WSEvent]],
       eventIds: Map[NodeId, Ref[F, Int]],
       logs: KVStore[F, NodeId, List[WSEvent]])(implicit F: Effect[F]): GossipServer[F, WSEvent] =
