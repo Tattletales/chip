@@ -8,6 +8,7 @@ import io.circe.refined._
 import fs2.StreamApp.ExitCode
 import fs2._
 import backend.gossip._
+import Node.NodeIdTag
 import backend.storage._
 import backend.network._
 import backend.implicits._
@@ -21,6 +22,7 @@ import backend.implicits._
 import vault.api.Server
 import vault.model._
 import cats.Applicative
+import cats.data.NonEmptyList
 import eu.timepit.refined.api.RefType.applyRef
 import eu.timepit.refined.pureconfig._
 import config._
@@ -28,6 +30,7 @@ import pureconfig._
 import pureconfig.module.cats._
 import eu.timepit.refined.auto._
 import eu.timepit.refined.pureconfig._
+import shapeless.tag
 import vault.programs.Benchmark
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -43,7 +46,12 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         .map(_.toInt)
         .getOrElse(throw new IllegalArgumentException("The node number needs to be provided!"))
 
-      val conf = loadConfigOrThrow[VaultConfig]("vault")
+      val conf = if (args.length == 1) {
+        loadConfigOrThrow[VaultConfig]("vault")
+      } else {
+        loadConfigOrThrow[VaultConfig]("vault")
+          .copy(nodeIds = NonEmptyList.fromListUnsafe(args.tail.map(tag[NodeIdTag][String])))
+      }
 
       val nodeId = conf.nodeIds
         .get(nodeNumber)
