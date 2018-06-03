@@ -1,9 +1,10 @@
 package gossipServer
 
 import backend.events.WSEvent
-import backend.gossip.Node.NodeId
+import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.storage.KVStore
 import backend.implicits._
+import cats.data.NonEmptyList
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import fs2.StreamApp.ExitCode
@@ -15,6 +16,7 @@ import pureconfig.module.cats._
 import eu.timepit.refined.auto._
 import eu.timepit.refined.pureconfig._
 import gossipServer.config.ServerConfig
+import shapeless.tag
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -23,7 +25,12 @@ object ServerApp extends Server[IO]
 
 class Server[F[_]: Effect] extends StreamApp[F] {
   override def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] = {
-    val conf = loadConfigOrThrow[ServerConfig]("server")
+    val conf = if (args.isEmpty) {
+      loadConfigOrThrow[ServerConfig]("server")
+    } else {
+      ServerConfig(
+        NonEmptyList.fromListUnsafe(args.slice(1, args.head.toInt + 1).map(tag[NodeIdTag][String])))
+    }
 
     val eventQueues = conf.nodeIds
       .traverse(nodeId => async.unboundedQueue[F, WSEvent].map((nodeId, _)))
