@@ -15,13 +15,11 @@ import backend.implicits._
 import backend.events._
 import vault.model.{Money, User}
 import org.http4s.circe._
-import vault.events.TransactionStage
-import vault.events.Transactions.handleTransactionStages
+import vault.events.{EventsHandler, TransactionStage}
 import vault.implicits._
 import backend.implicits._
 import vault.api.Server
 import vault.model._
-import cats.Applicative
 import cats.data.NonEmptyList
 import eu.timepit.refined.api.RefType.applyRef
 import eu.timepit.refined.pureconfig._
@@ -31,7 +29,7 @@ import pureconfig.module.cats._
 import eu.timepit.refined.auto._
 import eu.timepit.refined.pureconfig._
 import shapeless.tag
-import vault.programs.Benchmark
+import vault.benchmarks.Benchmark
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -40,8 +38,6 @@ object VaultApp extends Vault[IO]
 class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
     Scheduler(corePoolSize = 10).flatMap { implicit S =>
-      if (args.isEmpty) throw new IllegalArgumentException("The node number needs to be provided!")
-
       val nodeNumber = args.headOption
         .map(_.toInt)
         .getOrElse(throw new IllegalArgumentException("The node number needs to be provided!"))
@@ -81,18 +77,17 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
 
         kvs = keyValueStore[F, User, Money]
 
-        accounts <- Stream.eval(accounts(loggingDaemon, kvs).withAccounts(conf.nodeIds))
-
-        handler = daemon.subscribe.through(handleTransactionStages(_ =>
-          implicitly[Applicative[F]].unit)(loggingDaemon, kvs, accounts))
+        accounts <- Stream.eval(accounts(conf.nodeIds)(loggingDaemon, kvs))
 
         program = conf.benchmark match {
           case Some(benchmark) =>
             Benchmark[F, WSEvent](benchmark)(conf.nodeIds)(kvs, accounts, loggingDaemon).run
-          case None => Server.authed(accounts, loggingDaemon, Some(frontendPort)).run
+          case None =>
+            Stream(Server.authed(accounts, loggingDaemon, Some(frontendPort)).run,
+                   EventsHandler(loggingDaemon, kvs, accounts).run).join(2)
         }
 
-        ec <- Stream(program, handler).join(2).drain ++ Stream.emit(ExitCode.Success)
+        ec <- program.drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 

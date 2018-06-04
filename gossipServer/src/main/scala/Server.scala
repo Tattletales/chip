@@ -28,8 +28,7 @@ class Server[F[_]: Effect] extends StreamApp[F] {
     val conf = if (args.isEmpty) {
       loadConfigOrThrow[ServerConfig]("server")
     } else {
-      ServerConfig(
-        NonEmptyList.fromListUnsafe(args.slice(1, args.head.toInt + 1).map(tag[NodeIdTag][String])))
+      ServerConfig(NonEmptyList.fromListUnsafe(args.map(tag[NodeIdTag][String])))
     }
 
     val eventQueues = conf.nodeIds

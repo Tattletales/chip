@@ -3,7 +3,7 @@ package vault
 import backend.gossip.Node.NodeId
 import backend.network.Route
 import cats.data.NonEmptyList
-import vault.programs.Benchmark
+import vault.benchmarks.Benchmark
 
 package object config {
   case class VaultConfig(nodeIds: NonEmptyList[NodeId],

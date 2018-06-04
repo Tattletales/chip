@@ -1,21 +1,19 @@
-package vault.programs
+package vault.benchmarks
 
 import backend.gossip.GossipDaemon
 import backend.storage.KVStore
-import cats.Applicative
 import cats.effect.Effect
 import cats.implicits._
 import eu.timepit.refined.api.RefType.applyRefM
 import fs2._
 import backend.gossip.Gossipable
 import cats.data.NonEmptyList
-import vault.events.{Deposit, TransactionStage}
-import vault.events.Transactions.handleTransactionStages
+import backend.programs.Program
+import vault.events.{Deposit, EventsHandler, TransactionStage}
 import vault.model.{Money, User}
 import vault.model.Accounts
 
 import scala.util.{Random => ScalaRandom}
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 sealed trait Benchmark
@@ -28,7 +26,7 @@ object Benchmark {
   def apply[F[_]: Effect, E: Gossipable](benchmark: Benchmark)(users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
     benchmark match {
       case LoneSender      => loneSender(users.toList)(kvs, accounts, daemon)
       case Random          => random(users.toList)(kvs, accounts, daemon)
@@ -42,15 +40,14 @@ object Benchmark {
   private def loneSender[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
-    new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+    new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval {
           daemon.getNodeId
             .map(_ == users.head)
             .ifM(accounts.transfer(users(1 % users.size), applyRefM[Money](0.001)),
                  implicitly[Effect[F]].unit)
-
         }
 
         def next(deposit: Deposit): F[Unit] = deposit match {
@@ -63,22 +60,20 @@ object Benchmark {
               }, implicitly[Effect[F]].unit)
         }
 
-        val handler =
-          daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
+        val handler = EventsHandler.withNext(daemon, kvs, accounts)(next).run
 
         Stream(start, handler).join(2).drain
       }
     }
 
   /**
-    * Infinitely transfer money to the other users. The order is random but each
-    * user will receive transactions one after each other.
+    * Infinitely transfer money to the other users.
     */
   private def random[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
-    new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+    new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val benchmark = for {
           me <- Stream.eval(daemon.getNodeId)
@@ -90,8 +85,7 @@ object Benchmark {
           }
         } yield ()
 
-        val handler = daemon.subscribe.through(
-          handleTransactionStages(_ => implicitly[Applicative[F]].unit)(daemon, kvs, accounts))
+        val handler = EventsHandler(daemon, kvs, accounts).run
 
         Stream(benchmark, handler).join(2).drain
       }
@@ -104,8 +98,8 @@ object Benchmark {
   private def localRoundRobin[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
-    new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+    new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval(for {
           me <- daemon.getNodeId
@@ -123,8 +117,7 @@ object Benchmark {
               }, implicitly[Effect[F]].unit)
         }
 
-        val handler =
-          daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
+        val handler = EventsHandler.withNext(daemon, kvs, accounts)(next).run
 
         Stream(start, handler).join(2).drain
       }
@@ -136,8 +129,8 @@ object Benchmark {
   private def roundRobin[F[_]: Effect, E: Gossipable](users: List[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F] =
-    new Program[F] {
+      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+    new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval {
           daemon.getNodeId
@@ -156,8 +149,7 @@ object Benchmark {
               }, implicitly[Effect[F]].unit)
         }
 
-        val handler =
-          daemon.subscribe.through(handleTransactionStages(next)(daemon, kvs, accounts))
+        val handler = EventsHandler.withNext(daemon, kvs, accounts)(next).run
 
         Stream(start, handler).join(2).drain
       }

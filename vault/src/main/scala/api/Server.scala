@@ -16,6 +16,7 @@ import org.http4s._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{Cookie => _, _}
 import org.http4s.server.blaze.BlazeBuilder
+import backend.programs.Program
 import shapeless.tag
 import scalatags.Text.all.{body, form, _}
 import vault.events.TransactionStage
@@ -24,16 +25,12 @@ import vault.model.Accounts
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-trait Server[F[_]] extends Http4sDsl[F] {
-  val run: Stream[F, ExitCode]
-}
-
 object Server {
   def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
       accounts: Accounts[F],
       daemon: GossipDaemon[F, TransactionStage, E],
-      port: Option[Int] = None): Server[F] =
-    new Server[F] {
+      port: Option[Int] = None): Program[F, ExitCode] =
+    new Program[F, ExitCode] with Http4sDsl[F] {
       private val amountFieldId = "amount-input-id"
       private val beneficiaryFieldId = "beneficiary-input-id"
 
@@ -221,7 +218,7 @@ object Server {
             .getOrElseF(NotFound())
       }
 
-      val run: Stream[F, ExitCode] = {
+      def run: Stream[F, ExitCode] = {
         val p = port.getOrElse(8080)
 
         BlazeBuilder[F]

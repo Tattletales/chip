@@ -193,39 +193,30 @@ object Transactions {
   private def processTransactionStage[F[_], E](daemon: GossipDaemon[F, TransactionStage, E],
                                                kvs: KVStore[F, User, Money],
                                                accounts: Accounts[F])(next: Deposit => F[Unit])(
-      event: TransactionStage)(implicit F: MonadError[F, Throwable]): F[Unit] = {
-
-    /**
-      *
-      */
-    def transfer(from: User, to: User, amount: Money): F[Unit] = {
-      val debitFrom = for {
-        currentAmount <- accounts.balance(from)
-        newAmount <- F.fromEither(applyRef[Money](currentAmount.value - amount.value).leftMap(_ =>
-          InsufficentFunds(currentAmount, from)))
-        _ <- kvs.put(from, newAmount)
-      } yield ()
-
-      val creditTo = for {
-        currentAmount <- accounts.balance(to)
-        newAmount <- F.fromEither(applyRef[Money](currentAmount.value + amount.value).leftMap(_ =>
-          InsufficentFunds(currentAmount, to)))
-        _ <- kvs.put(to, newAmount)
-      } yield ()
-
-      debitFrom *> creditTo
-    }
-
+      event: TransactionStage)(implicit F: MonadError[F, Throwable]): F[Unit] =
     event match {
       case Withdraw(from, to, amount, Some(lsn)) =>
-        val deposit = daemon.send(Deposit(from, to, amount, lsn))
+        for {
+          balance <- accounts.balance(from)
+          newBalance <- F.fromEither(applyRef[Money](balance.value - amount.value).leftMap(_ =>
+            InsufficentFunds(balance, from)))
 
-        daemon.getNodeId.map(_ == to).ifM(deposit, F.unit)
+          updateBalance = kvs.put(from, newBalance)
+          deposit = daemon.getNodeId
+            .map(_ == to)
+            .ifM(daemon.send(Deposit(from, to, amount, lsn)), F.unit)
+
+          _ <- updateBalance *> deposit
+        } yield ()
 
       case w @ Withdraw(_, _, _, None) => F.raiseError(MissingLsnError(w))
 
-      case d @ Deposit(from, to, amount, _) =>
-        transfer(from, to, amount) >> next(d)
+      case Deposit(_, to, amount, _) =>
+        for {
+          balance <- accounts.balance(to)
+          newBalance <- F.fromEither(applyRef[Money](balance.value + amount.value).leftMap(_ =>
+            InsufficentFunds(balance, to)))
+          _ <- kvs.put(to, newBalance)
+        } yield ()
     }
-  }
 }
