@@ -63,10 +63,10 @@ object KVStore {
 
     def get(k: K): F[Option[V]] = F.delay(map.get(k))
 
-    def put(k: K, v: V): F[Unit] = F.delay(map.put(k, v))
+    def put(k: K, v: V): F[Unit] = F.delay(map.put(k, v)).map(_ => ())
 
     def keys: F[Set[K]] = F.delay(map.keySet.toSet)
 
-    def remove(k: K): F[Unit] = F.delay(map.remove(k))
+    def remove(k: K): F[Unit] = F.delay(map.remove(k)).map(_ => ())
   }
 }

@@ -15,6 +15,8 @@ import pureconfig._
 import pureconfig.module.cats._
 import eu.timepit.refined.auto._
 import eu.timepit.refined.pureconfig._
+import fs2.async.Ref
+import fs2.async.mutable.Queue
 import gossipServer.config.ServerConfig
 import shapeless.tag
 
@@ -39,10 +41,10 @@ class Server[F[_]: Effect] extends StreamApp[F] {
       conf.nodeIds.traverse(nodeId => async.refOf[F, Int](0).map((nodeId, _))).map(_.toList.toMap)
 
     for {
-      eventQueues <- Stream.eval(eventQueues)
-      eventIds <- Stream.eval(eventIds)
+      eventQueues <- Stream.eval[F, Map[NodeId, Queue[F, WSEvent]]](eventQueues)
+      eventIds <- Stream.eval[F, Map[NodeId, Ref[F, Int]]](eventIds)
       store = KVStore.mutableMap[F, NodeId, List[WSEvent]]
-      _ <- Stream.eval(conf.nodeIds.traverse(store.put(_, List.empty)))
+      _ <- Stream.eval[F, Unit](conf.nodeIds.traverse(store.put(_, List.empty)).map(_ => ()))
       service = GossipServer.webSocket(eventQueues, eventIds, store).service
 
       server <- BlazeBuilder[F]

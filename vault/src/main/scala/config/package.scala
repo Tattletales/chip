@@ -7,8 +7,8 @@ import vault.benchmarks.Benchmark
 
 package object config {
   final case class VaultConfig(nodeIds: NonEmptyList[NodeId],
-                         webSocketRoute: Route,
-                         nodeIdRoute: Route,
-                         logRoute: Route,
-                         benchmark: Option[Benchmark])
+                               webSocketRoute: Route,
+                               nodeIdRoute: Route,
+                               logRoute: Route,
+                               benchmark: Option[Benchmark])
 }

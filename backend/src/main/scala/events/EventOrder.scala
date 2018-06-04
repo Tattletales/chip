@@ -16,7 +16,7 @@ object EventOrder {
         .InvariantOps(s)
         .pull
         .uncons1
-        .flatMap {
+        .flatMap[F, E, Unit] {
           case Some((e, es)) =>
             (e.causedBy, waitingFor.get(e.lsn)) match {
               // Deliver `e` but first the events waiting for it.

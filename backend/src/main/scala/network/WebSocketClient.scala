@@ -3,7 +3,7 @@ package backend.network
 import akka.{Done, NotUsed}
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{StatusCodes, Uri => AkkaUri}
+import akka.http.scaladsl.model.{Uri => AkkaUri}
 import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink => AkkaSink, Source => AkkaSource}
@@ -31,7 +31,6 @@ object WebSocketClient {
     new WebSocketClient[F, M1, M2] {
       implicit val system = ActorSystem()
       implicit val materializer = ActorMaterializer()
-      import system.dispatcher
 
       def send(message: M1): F[Unit] = outgoingQueue.enqueue1(message)
       def receive: Stream[F, M2] = incomingQueue.dequeue
@@ -56,12 +55,12 @@ object WebSocketClient {
           .toMat(incoming)(Keep.both) // also keep the Future[Done]
           .run()
 
-      private val _ = upgradeResponse.flatMap { upgrade =>
-        if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
-          Future.successful(Done)
-        } else {
-          throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
-        }
-      }
+      //private val _ = upgradeResponse.flatMap { upgrade =>
+      //  if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
+      //    Future.successful(Done)
+      //  } else {
+      //    throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
+      //  }
+      //}
     }
 }

@@ -112,11 +112,13 @@ object Server {
         message.traverse(retrieveUser.run).map(_.fold(Left(_), e => e))
       }
 
-      private val onFailure: AuthedService[String, F] = Kleisli { request =>
-        OptionT.liftF(Forbidden(request.authInfo))
-      }
+      private val onFailure: AuthedService[String, F] =
+        Kleisli[OptionT[F, ?], AuthedRequest[F, String], Response[F]] { request =>
+          OptionT.liftF(Forbidden(request.authInfo))
+        }
 
-      private val middleware: AuthMiddleware[F, User] = AuthMiddleware(authUser, onFailure)
+      private val middleware: AuthMiddleware[F, User] =
+        AuthMiddleware[F, String, User](authUser, onFailure)
 
       private val read: HttpService[F] = HttpService {
         case GET -> Root =>

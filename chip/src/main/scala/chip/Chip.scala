@@ -24,7 +24,7 @@ object ChipApp extends Chip[IO]
 
 class Chip[F[_]: Effect] extends StreamApp[F] {
   def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
-    Scheduler(corePoolSize = 10).flatMap { implicit S =>
+    Scheduler[F](corePoolSize = 10).flatMap { implicit S =>
       for {
         eventQueue <- Stream.eval(async.unboundedQueue[F, SSEvent])
 
@@ -37,9 +37,10 @@ class Chip[F[_]: Effect] extends StreamApp[F] {
 
         replicator = Replicator[F, SSEvent](db, daemon.subscribe)
 
-        server = Server.authed(users, tweets, daemon).run
+        server = Server.authed(users, tweets, daemon).run.map(_ => ())
 
-        ec <- Stream(replicator, server).join(2).drain ++ Stream.emit(ExitCode.Success)
+        ec <- Stream[Stream[F, Unit]](replicator, server).join[F, Unit](2).drain ++ Stream.emit(
+          ExitCode.Success)
       } yield ec
     }
 

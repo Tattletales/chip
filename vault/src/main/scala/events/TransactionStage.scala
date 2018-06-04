@@ -29,7 +29,8 @@ sealed trait TransactionStage
 /**
   * Initial stage of a transaction.
   */
-final case class Withdraw(from: User, to: User, amount: Money, lsn: Option[Lsn]) extends TransactionStage
+final case class Withdraw(from: User, to: User, amount: Money, lsn: Option[Lsn])
+    extends TransactionStage
 object Withdraw {
 
   /**
@@ -43,7 +44,8 @@ object Withdraw {
 /**
   * Second and final stage of a transaction. When this stage is processed the transaction is attempted.
   */
-final case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends TransactionStage
+final case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn)
+    extends TransactionStage
 
 object Transactions {
 
@@ -119,7 +121,7 @@ object Transactions {
         .InvariantOps(s)
         .pull
         .uncons1
-        .flatMap {
+        .flatMap[F, TransactionStage, Unit] {
           case Some((e, es)) =>
             e match {
               case d @ Deposit(from, _, depositedAmount, dependsOn) =>
@@ -144,11 +146,12 @@ object Transactions {
                 val handleWithdraw = waitingFor.get(lsn) match {
                   case Some(deposit) =>
                     if (deposit.amount == withdrawnAmount)
-                      Pull.output1(w) >> Pull
-                        .output1(deposit) >> go(es,
-                                                accounts,
-                                                waitingFor - lsn,
-                                                withdrawn + (lsn -> withdrawnAmount))
+                      Pull.output1[F, TransactionStage](w) >> Pull
+                        .output1[F, TransactionStage](deposit) >> go(
+                        es,
+                        accounts,
+                        waitingFor - lsn,
+                        withdrawn + (lsn -> withdrawnAmount))
                     else
                       // Ignore, transaction is faulty.
                       go(es, accounts, waitingFor - lsn, withdrawn)

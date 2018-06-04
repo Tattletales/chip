@@ -60,10 +60,10 @@ object GossipDaemon {
   def serverSentEvent[F[_], E: Encoder](nodeIdRoute: Route,
                                         sendRoute: Route,
                                         subscribeRoute: Route,
-                                        logRoute: Route)(nodeId: Option[NodeId] = None)(
-      httpClient: HttpClient[F],
-      subscriber: Subscription[F, SSEvent])(implicit F: MonadError[F, Throwable],
-                                            E: EventTyper[E]): GossipDaemon[F, E, SSEvent] =
+                                        logRoute: Route)(
+      nodeId: Option[NodeId])(httpClient: HttpClient[F], subscriber: Subscription[F, SSEvent])(
+      implicit F: MonadError[F, Throwable],
+      E: EventTyper[E]): GossipDaemon[F, E, SSEvent] =
     new GossipDaemon[F, E, SSEvent] {
 
       /**
@@ -119,63 +119,8 @@ object GossipDaemon {
     * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with events
     * gossiped using WebSockets.
     */
-  def webSocket1[F[_], E1: Encoder: Decoder](nodeIdRoute: Route, logRoute: Route)(
-      nodeId: Option[NodeId] = None,
-      ordering: Pipe[F, WSEvent, WSEvent])(httpClient: HttpClient[F],
-                                           ws: WebSocketClient[F, E1, WSEvent])(
-      implicit F: MonadError[F, Throwable],
-      E: EventTyper[E1]): GossipDaemon[F, E1, E1] =
-    new GossipDaemon[F, E1, E1] {
-      // last event (delivered or sent)
-
-      /**
-        * @see [[GossipDaemon.getNodeId]]
-        *
-        * Failures:
-        *   - [[NodeIdError]] if the node id cannot be retrieved.
-        */
-      def getNodeId: F[NodeId] = nodeId match {
-        case Some(nodeId) => F.pure(nodeId)
-        case None =>
-          httpClient
-            .getRaw(nodeIdRoute)
-            .map(tag[NodeIdTag][String])
-            .adaptError {
-              case _ => NodeIdError
-            }
-
-      }
-
-      def send(e: E1): F[Unit] = ws.send(e)
-
-      def subscribe: Stream[F, E1] =
-        ws.receive.through(ordering).map(_.payload).through(decoder[F, E1])
-
-      /**
-        * @see [[GossipDaemon.getLog]]
-        *
-        * Failures:
-        *   - [[LogRetrievalError]] if the log cannot be retrieved.
-        */
-      def getLog: F[List[E1]] =
-        httpClient
-          .get[Json](logRoute)
-          .flatMap { json =>
-            F.fromEither(json.as[List[E1]])
-          }
-          .adaptError {
-            case _ => LogRetrievalError
-          }
-
-      final case class CausalEvent(dependsOn: Lsn, payload: E1)
-    }
-
-  /**
-    * Interpret to the [[HttpClient]] and [[Subscription]] DSLs with events
-    * gossiped using WebSockets.
-    */
   def webSocket[F[_], E: Encoder](nodeIdRoute: Route, logRoute: Route)(
-      nodeId: Option[NodeId] = None)(httpClient: HttpClient[F], ws: WebSocketClient[F, E, WSEvent])(
+      nodeId: Option[NodeId])(httpClient: HttpClient[F], ws: WebSocketClient[F, E, WSEvent])(
       implicit F: MonadError[F, Throwable],
       E: EventTyper[E]): GossipDaemon[F, E, WSEvent] =
     new GossipDaemon[F, E, WSEvent] {
