@@ -18,11 +18,11 @@ case object LogRetrievalError extends GossipDeamonError
   * Subscriber related errors
   */
 sealed trait SubscriberError extends Error
-case class MalformedSSE(sse: ServerSentEvent) extends SubscriberError
+final case class MalformedSSE(sse: ServerSentEvent) extends SubscriberError
 
 /**
   *  HttpClient related errors
   */
 sealed trait HttpClientError extends Error
-case class MalformedUriError(uri: String, m: String) extends HttpClientError
-case class FailedRequestResponse(uri: Uri) extends HttpClientError
+final case class MalformedUriError(uri: String, m: String) extends HttpClientError
+final case class FailedRequestResponse(uri: Uri) extends HttpClientError

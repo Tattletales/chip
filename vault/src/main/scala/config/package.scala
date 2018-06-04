@@ -6,7 +6,7 @@ import cats.data.NonEmptyList
 import vault.benchmarks.Benchmark
 
 package object config {
-  case class VaultConfig(nodeIds: NonEmptyList[NodeId],
+  final case class VaultConfig(nodeIds: NonEmptyList[NodeId],
                          webSocketRoute: Route,
                          nodeIdRoute: Route,
                          logRoute: Route,

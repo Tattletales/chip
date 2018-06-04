@@ -29,7 +29,7 @@ sealed trait TransactionStage
 /**
   * Initial stage of a transaction.
   */
-case class Withdraw(from: User, to: User, amount: Money, lsn: Option[Lsn]) extends TransactionStage
+final case class Withdraw(from: User, to: User, amount: Money, lsn: Option[Lsn]) extends TransactionStage
 object Withdraw {
 
   /**
@@ -43,7 +43,7 @@ object Withdraw {
 /**
   * Second and final stage of a transaction. When this stage is processed the transaction is attempted.
   */
-case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends TransactionStage
+final case class Deposit(from: User, to: User, amount: Money, dependsOn: Lsn) extends TransactionStage
 
 object Transactions {
 

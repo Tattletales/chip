@@ -5,7 +5,7 @@ import backend.gossip.Gossipable
 /**
   * Event sent by the ServerSentEvent protocol
   */
-case class SSEvent(lsn: Lsn, eventType: EventType, payload: Payload)
+final case class SSEvent(lsn: Lsn, eventType: EventType, payload: Payload)
 object SSEvent {
   implicit def gossipableSSEvent: Gossipable[SSEvent] = new Gossipable[SSEvent] {
     def lsn(e: SSEvent): Lsn = e.lsn

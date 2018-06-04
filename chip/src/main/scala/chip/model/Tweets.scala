@@ -62,7 +62,7 @@ object Tweets {
 
 object TweetsEvents {
   sealed trait TweetsEvent
-  case class AddTweet(tweet: Tweet) extends TweetsEvent
+  final case class AddTweet(tweet: Tweet) extends TweetsEvent
 
   object TweetsEvent {
     implicit val namedTweetsEvent: EventTyper[TweetsEvent] =

@@ -1,3 +1,3 @@
 package vault.model
 
-case class Account(owner: User, balance: Money)
+final case class Account(owner: User, balance: Money)

@@ -64,7 +64,7 @@ object Users {
 
 object UsersEvents {
   sealed trait UsersEvent
-  case class AddUser(user: User) extends UsersEvent
+  final case class AddUser(user: User) extends UsersEvent
 
   object UsersEvent {
     implicit val namedUsersEvent: EventTyper[UsersEvent] = new EventTyper[UsersEvent] {

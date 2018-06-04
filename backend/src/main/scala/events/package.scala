@@ -15,7 +15,7 @@ package object events {
   sealed trait PayloadTag
   type Payload = Json @@ PayloadTag
 
-  case class Lsn(nodeId: NodeId, eventId: EventId)
+  final case class Lsn(nodeId: NodeId, eventId: EventId)
 
   def subscription[F[_]: Effect]: Subscription[F, SSEvent] = Subscription.serverSentEvent
 }

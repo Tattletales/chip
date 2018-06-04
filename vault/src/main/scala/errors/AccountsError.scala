@@ -9,10 +9,10 @@ import vault.events.Withdraw
   * Accounts related errors
   */
 sealed trait AccountsError extends Error
-case class AccountNotFound(user: User) extends AccountsError {
+final case class AccountNotFound(user: User) extends AccountsError {
   override def toString: String = s"No account for $user."
 }
-case class InsufficentFunds(currentAmount: Money, of: User) extends AccountsError
+final case class InsufficentFunds(currentAmount: Money, of: User) extends AccountsError
 case object UnknownUser extends AccountsError
 case object TransferError extends AccountsError
 
@@ -21,12 +21,12 @@ case object TransferError extends AccountsError
   */
 sealed trait TransactionStageError extends Error
 
-case class PayloadDecodingError(payload: Payload) extends TransactionStageError {
+final case class PayloadDecodingError(payload: Payload) extends TransactionStageError {
   override def toString: String = s"Failed decoding the payload $payload.\n"
 }
 
-case class SenderError(m: String) extends TransactionStageError
+final case class SenderError(m: String) extends TransactionStageError
 
-case class MissingLsnError(w: Withdraw) extends TransactionStageError {
+final case class MissingLsnError(w: Withdraw) extends TransactionStageError {
   override def toString: String = s"Missing lsn in $w. It should have been added in the decoder."
 }

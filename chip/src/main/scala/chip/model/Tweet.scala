@@ -8,7 +8,7 @@ import shapeless.tag.@@
 import chip.implicits._
 import backend.implicits._
 
-case class Tweet(userId: UserId, content: Content)
+final case class Tweet(userId: UserId, content: Content)
 
 object Tweet {
   sealed trait ContentTag

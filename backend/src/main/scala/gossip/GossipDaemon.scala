@@ -49,7 +49,7 @@ trait GossipDaemon[F[_], E1, E2] {
 }
 
 object GossipDaemon {
-  case class Event(eventType: EventType, payload: Payload)
+  final case class Event(eventType: EventType, payload: Payload)
 
   /* ------ Interpreters ------*/
 
@@ -167,7 +167,7 @@ object GossipDaemon {
             case _ => LogRetrievalError
           }
 
-      case class CausalEvent(dependsOn: Lsn, payload: E1)
+      final case class CausalEvent(dependsOn: Lsn, payload: E1)
     }
 
   /**
