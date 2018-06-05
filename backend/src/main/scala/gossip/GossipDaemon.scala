@@ -11,12 +11,11 @@ import cats.arrow.Profunctor
 import cats.effect.{Effect, Sync}
 import cats.implicits._
 import cats.{Functor, MonadError}
-import fs2.{Pipe, Stream}
+import fs2.Stream
 import fs2.async.mutable.Queue
 import io.circe.generic.auto._
 import io.circe.syntax._
-import io.circe.{Decoder, Encoder, Json}
-import io.circe.fs2._
+import io.circe.{Encoder, Json}
 import shapeless.tag
 import utils.stream.Utils.log
 
@@ -201,8 +200,8 @@ object GossipDaemon {
         * Log `e` to the file at path [[path]]
         */
       private def log[E](e: E): F[Unit] =
-        F.delay {
-          bw.write(s"${System.currentTimeMillis()} $e SEND\n")
+        daemon.getNodeId.map { nId =>
+          bw.write(s"${System.currentTimeMillis()} $nId SENT $e \n")
           bw.flush()
         }
     }

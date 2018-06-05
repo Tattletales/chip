@@ -1,4 +1,4 @@
-name := "vault"
+name := "chip"
 
 version := "0.1"
 

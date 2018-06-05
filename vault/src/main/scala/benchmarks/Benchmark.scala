@@ -9,7 +9,7 @@ import fs2._
 import backend.gossip.Gossipable
 import cats.data.NonEmptyList
 import backend.programs.Program
-import vault.events.{Deposit, TransactionsHandler, TransactionStage}
+import vault.events.{Deposit, TransactionStage, TransactionsHandler}
 import vault.model.{Money, User}
 import vault.model.Accounts
 
@@ -44,9 +44,10 @@ object Benchmark {
     new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval {
+          val nextPersonInList = 1
           daemon.getNodeId
             .map(_ == users.head)
-            .ifM(accounts.transfer(users.toList(1 % users.size), applyRefM[Money](0.001)),
+            .ifM(accounts.transfer(users.toList(nextPersonInList), applyRefM[Money](0.001)),
                  implicitly[Effect[F]].unit)
         }
 

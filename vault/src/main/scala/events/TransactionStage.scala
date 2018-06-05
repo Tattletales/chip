@@ -17,6 +17,7 @@ import backend.gossip.Gossipable
 import backend.gossip.Gossipable.ops._
 import eu.timepit.refined.api.RefType.applyRef
 import utils.stream.Utils
+import vault.config.VaultConfig
 import vault.errors.{InsufficentFunds, MissingLsnError, PayloadDecodingError, SenderError}
 
 /**
@@ -61,11 +62,19 @@ object Transactions {
   def handleTransactionStages[F[_]: Effect, E: Gossipable](next: Deposit => F[Unit])(
       daemon: GossipDaemon[F, TransactionStage, E],
       kvs: KVStore[F, User, Money],
-      accounts: Accounts[F]): Sink[F, E] =
-    _.through(decodeAndCausalOrder(accounts))
-      .through(Utils.log("Delivered"))
-      .through(Utils.logToFile("DELIVERED", "test"))
-      .evalMap(processTransactionStage(daemon, kvs, accounts)(next))
+      accounts: Accounts[F]): Sink[F, E] = { s =>
+    Stream.eval(daemon.getNodeId).flatMap { nodeId =>
+      val conf = VaultConfig.config
+
+      s.through(decodeAndCausalOrder(accounts))
+        .through(Utils.log("Delivered"))
+        .through(conf.logFile match {
+          case Some(path) => Utils.logToFile(s"$nodeId DELIVERED", path)
+          case None       => (s => s) // Do nothing
+        })
+        .evalMap(processTransactionStage(daemon, kvs, accounts)(next))
+    }
+  }
 
   /**
     * Decode and reorder the transaction stages so they are delivered in a causal order.
@@ -214,12 +223,13 @@ object Transactions {
 
       case w @ Withdraw(_, _, _, None) => F.raiseError(MissingLsnError(w))
 
-      case Deposit(_, to, amount, _) =>
+      case d @ Deposit(_, to, amount, _) =>
         for {
           balance <- accounts.balance(to)
           newBalance <- F.fromEither(applyRef[Money](balance.value + amount.value).leftMap(_ =>
             InsufficentFunds(balance, to)))
           _ <- kvs.put(to, newBalance)
+          _ <- next(d)
         } yield ()
     }
 }

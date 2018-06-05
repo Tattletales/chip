@@ -22,12 +22,8 @@ import vault.api.Server
 import vault.model._
 import cats.data.NonEmptyList
 import eu.timepit.refined.api.RefType.applyRef
-import eu.timepit.refined.pureconfig._
 import config._
-import pureconfig._
-import pureconfig.module.cats._
 import eu.timepit.refined.auto._
-import eu.timepit.refined.pureconfig._
 import shapeless.tag
 import vault.benchmarks.Benchmark
 
@@ -43,9 +39,9 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         .getOrElse(throw new IllegalArgumentException("The node number needs to be provided!"))
 
       val conf = if (args.length == 1) {
-        loadConfigOrThrow[VaultConfig]("vault")
+        VaultConfig.config
       } else {
-        loadConfigOrThrow[VaultConfig]("vault")
+        VaultConfig.config
           .copy(nodeIds = NonEmptyList.fromListUnsafe(args.tail.map(tag[NodeIdTag][String])))
       }
 
@@ -58,7 +54,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         applyRef[Route](conf.webSocketRoute.value ++ s"/$nodeId").right.get
       val nodeIdRouteWithNodeId = applyRef[Route](conf.nodeIdRoute.value ++ s"/$nodeId").right.get
       val logRouteWithNodeId = applyRef[Route](conf.logRoute.value ++ s"/$nodeId").right.get
-      
+
       for {
         httpClient <- httpClient
 
@@ -71,7 +67,10 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
             .getOrElse(throw new IllegalArgumentException(
               s"No node id corresponding to node #$nodeNumber.")))(httpClient, wsClient)
 
-        loggingDaemon = logToFile("test")(daemon)
+        loggingDaemon = conf.logFile match {
+          case Some(path) => logToFile(path)(daemon)
+          case None       => daemon
+        }
 
         kvs = keyValueStore[F, User, Money]
 
@@ -81,7 +80,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
           case Some(benchmark) =>
             Benchmark[F, WSEvent](benchmark)(conf.nodeIds)(kvs, accounts, loggingDaemon).run
           case None =>
-            val server = Server(accounts, loggingDaemon, Some(8080 + nodeNumber)).run.map(_ => ())
+            val server = Server(accounts, loggingDaemon, 8080 + nodeNumber).run.map(_ => ())
             val handler = TransactionsHandler(loggingDaemon, kvs, accounts).run
 
             Stream[Stream[F, Unit]](server, handler).join[F, Unit](2)

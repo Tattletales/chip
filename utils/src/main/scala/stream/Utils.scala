@@ -13,12 +13,12 @@ object Utils {
     F.delay { println(s"$prefix> $a"); a }
   }
 
-  def logToFile[F[_], A](postfix: String, path: String)(implicit F: Sync[F]): Pipe[F, A, A] = {
+  def logToFile[F[_], A](prefix: String, path: String)(implicit F: Sync[F]): Pipe[F, A, A] = {
     val file = new File(path)
     val bw = new BufferedWriter(new FileWriter(file, true))
 
     _.evalMap { a =>
-      F.delay { bw.write(s"${System.currentTimeMillis()} $a $postfix\n"); bw.flush(); a }
+      F.delay { bw.write(s"${System.currentTimeMillis()} $prefix $a\n"); bw.flush(); a }
     }
   }
 
