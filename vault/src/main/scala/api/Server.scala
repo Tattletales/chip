@@ -26,7 +26,7 @@ import vault.model.Accounts
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object Server {
-  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
+  def apply[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
       accounts: Accounts[F],
       daemon: GossipDaemon[F, TransactionStage, E],
       port: Option[Int] = None): Program[F, ExitCode] =

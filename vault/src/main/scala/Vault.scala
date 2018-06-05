@@ -84,7 +84,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
             Benchmark[F, WSEvent](benchmark)(conf.nodeIds)(kvs, accounts, loggingDaemon).run
           case None =>
             Stream[Stream[F, Unit]](
-              Server.authed(accounts, loggingDaemon, Some(frontendPort)).run.map(_ => ()),
+              Server(accounts, loggingDaemon, Some(frontendPort)).run.map(_ => ()),
               EventsHandler(loggingDaemon, kvs, accounts).run).join[F, Unit](2)
         }
 
