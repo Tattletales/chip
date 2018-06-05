@@ -86,7 +86,7 @@ object GossipServer {
       logs: KVStore[F, NodeId, List[WSEvent]])(implicit F: Effect[F]): GossipServer[F, WSEvent] =
     new GossipServer[F, WSEvent] {
       def service: HttpService[F] = HttpService[F] {
-        case GET -> Root / "events" / nodeId =>
+        case GET -> Root / "gossip" / nodeId =>
           val outgoing =
             eventQueues(tag[NodeIdTag][String](nodeId)).dequeue.through(handleOutgoing)
           val incoming = handleIncoming(tag[NodeIdTag][String](nodeId))
