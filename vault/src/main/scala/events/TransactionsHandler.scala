@@ -9,7 +9,7 @@ import vault.events.Transactions.handleTransactionStages
 import vault.model.{Accounts, Money, User}
 import fs2.Stream
 
-object EventsHandler {
+object TransactionsHandler {
   def apply[F[_]: Effect, E: Gossipable](
       daemon: GossipDaemon[F, TransactionStage, E],
       kvs: KVStore[F, User, Money],

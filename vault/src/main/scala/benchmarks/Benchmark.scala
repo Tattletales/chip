@@ -9,7 +9,7 @@ import fs2._
 import backend.gossip.Gossipable
 import cats.data.NonEmptyList
 import backend.programs.Program
-import vault.events.{Deposit, EventsHandler, TransactionStage}
+import vault.events.{Deposit, TransactionsHandler, TransactionStage}
 import vault.model.{Money, User}
 import vault.model.Accounts
 
@@ -60,7 +60,7 @@ object Benchmark {
               }, implicitly[Effect[F]].unit)
         }
 
-        val handler = EventsHandler.withNext(daemon, kvs, accounts)(next).run
+        val handler = TransactionsHandler.withNext(daemon, kvs, accounts)(next).run
 
         Stream(start, handler).join(2).drain
       }
@@ -85,7 +85,7 @@ object Benchmark {
           }
         } yield ()
 
-        val handler = EventsHandler(daemon, kvs, accounts).run
+        val handler = TransactionsHandler(daemon, kvs, accounts).run
 
         Stream(benchmark, handler).join(2).drain
       }
@@ -117,7 +117,7 @@ object Benchmark {
               }, implicitly[Effect[F]].unit)
         }
 
-        val handler = EventsHandler.withNext(daemon, kvs, accounts)(next).run
+        val handler = TransactionsHandler.withNext(daemon, kvs, accounts)(next).run
 
         Stream(start, handler).join(2).drain
       }
@@ -149,7 +149,7 @@ object Benchmark {
               }, implicitly[Effect[F]].unit)
         }
 
-        val handler = EventsHandler.withNext(daemon, kvs, accounts)(next).run
+        val handler = TransactionsHandler.withNext(daemon, kvs, accounts)(next).run
 
         Stream(start, handler).join(2).drain
       }

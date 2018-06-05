@@ -15,7 +15,7 @@ import backend.implicits._
 import backend.events._
 import vault.model.{Money, User}
 import org.http4s.circe._
-import vault.events.{EventsHandler, TransactionStage}
+import vault.events.{TransactionsHandler, TransactionStage}
 import vault.implicits._
 import backend.implicits._
 import vault.api.Server
@@ -85,7 +85,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
           case None =>
             Stream[Stream[F, Unit]](
               Server(accounts, loggingDaemon, Some(frontendPort)).run.map(_ => ()),
-              EventsHandler(loggingDaemon, kvs, accounts).run).join[F, Unit](2)
+              TransactionsHandler(loggingDaemon, kvs, accounts).run).join[F, Unit](2)
         }
 
         ec <- program.drain ++ Stream.emit(ExitCode.Success)
