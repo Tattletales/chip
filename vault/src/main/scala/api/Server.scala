@@ -29,7 +29,7 @@ object Server {
   def apply[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
       accounts: Accounts[F],
       daemon: GossipDaemon[F, TransactionStage, E],
-      port: Option[Int] = None): Program[F, ExitCode] =
+      port: Int): Program[F, ExitCode] =
     new Program[F, ExitCode] with Http4sDsl[F] {
       private val amountFieldId = "amount-input-id"
       private val beneficiaryFieldId = "beneficiary-input-id"
@@ -218,14 +218,11 @@ object Server {
             .getOrElseF(NotFound())
       }
 
-      def run: Stream[F, ExitCode] = {
-        val p = port.getOrElse(8080)
-
+      def run: Stream[F, ExitCode] =
         BlazeBuilder[F]
-          .bindHttp(p, "localhost")
+          .bindHttp(port, "localhost")
           .withWebSockets(true)
           .mountService(service, "/")
           .serve
-      }
     }
 }

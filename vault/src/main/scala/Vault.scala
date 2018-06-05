@@ -15,7 +15,7 @@ import backend.implicits._
 import backend.events._
 import vault.model.{Money, User}
 import org.http4s.circe._
-import vault.events.{TransactionsHandler, TransactionStage}
+import vault.events.{TransactionStage, TransactionsHandler}
 import vault.implicits._
 import backend.implicits._
 import vault.api.Server
@@ -58,9 +58,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         applyRef[Route](conf.webSocketRoute.value ++ s"/$nodeId").right.get
       val nodeIdRouteWithNodeId = applyRef[Route](conf.nodeIdRoute.value ++ s"/$nodeId").right.get
       val logRouteWithNodeId = applyRef[Route](conf.logRoute.value ++ s"/$nodeId").right.get
-
-      val frontendPort = 8080 + nodeNumber
-
+      
       for {
         httpClient <- httpClient
 
@@ -83,9 +81,10 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
           case Some(benchmark) =>
             Benchmark[F, WSEvent](benchmark)(conf.nodeIds)(kvs, accounts, loggingDaemon).run
           case None =>
-            Stream[Stream[F, Unit]](
-              Server(accounts, loggingDaemon, Some(frontendPort)).run.map(_ => ()),
-              TransactionsHandler(loggingDaemon, kvs, accounts).run).join[F, Unit](2)
+            val server = Server(accounts, loggingDaemon, Some(8080 + nodeNumber)).run.map(_ => ())
+            val handler = TransactionsHandler(loggingDaemon, kvs, accounts).run
+
+            Stream[Stream[F, Unit]](server, handler).join[F, Unit](2)
         }
 
         ec <- program.drain ++ Stream.emit(ExitCode.Success)
