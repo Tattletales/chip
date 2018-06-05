@@ -10,6 +10,10 @@ import vault.model.{Accounts, Money, User}
 import fs2.Stream
 
 object TransactionsHandler {
+
+  /**
+    * Create a [[Program]] that will consume the events delivered by the [[GossipDaemon]].
+    */
   def apply[F[_]: Effect, E: Gossipable](
       daemon: GossipDaemon[F, TransactionStage, E],
       kvs: KVStore[F, User, Money],
@@ -19,6 +23,10 @@ object TransactionsHandler {
         daemon.subscribe.through(handleTransactionStages(_ => F.unit)(daemon, kvs, accounts))
     }
 
+  /**
+    * Create a [[Program]] that will consume the events delivered by the [[GossipDaemon]].
+    * The `next` function can be used to specify what to do after a transaction has succeeded.
+    */
   def withNext[F[_]: Effect, E: Gossipable](
       daemon: GossipDaemon[F, TransactionStage, E],
       kvs: KVStore[F, User, Money],
