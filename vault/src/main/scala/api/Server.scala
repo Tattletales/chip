@@ -31,150 +31,6 @@ object Server {
       daemon: GossipDaemon[F, TransactionStage, E],
       port: Int): Program[F, ExitCode] =
     new Program[F, ExitCode] with Http4sDsl[F] {
-      private val amountFieldId = "amount-input-id"
-      private val beneficiaryFieldId = "beneficiary-input-id"
-
-      private def homeForm(balance: Money) =
-        div(
-          id := "vault-main-block",
-          div(
-            id := "account-container",
-            `class` := "container"
-          ),
-          h1(
-            id := "account-balance",
-            s"Current balance: $balance"
-          ),
-          form(
-            action := "/balance",
-            method := "GET",
-            id := "account-balance-form",
-            `class` := "pure-form pure-form-aligned",
-            div(
-              `class` := "pure-controls",
-              button(
-                `type` := "submit",
-                `class` := "pure-button pure-button-primary",
-                "Check my account balance"
-              )
-            )
-          ),
-          hr,
-          h1("Issue a transfer"),
-          form(
-            action := "/transfer",
-            method := "POST",
-            id := "account-transfer-form",
-            `class` := "pure-form pure-form-aligned",
-            div(
-              `class` := "pure-control-group",
-              label(`for` := amountFieldId, `class` := "", "Transfer "),
-              input(
-                `type` := "text",
-                `class` := "",
-                name := amountFieldId,
-                id := amountFieldId,
-                placeholder := "Insert amount"
-              )
-            ),
-            div(
-              `class` := "pure-control-group",
-              label(`for` := beneficiaryFieldId, `class` := "", " to "),
-              input(
-                `type` := "text",
-                `class` := "",
-                name := beneficiaryFieldId,
-                id := beneficiaryFieldId,
-                placeholder := "Insert beneficiary"
-              )
-            ),
-            div(
-              `class` := "pure-controls",
-              button(
-                `type` := "submit",
-                `class` := "pure-button pure-button-primary",
-                "Send money"
-              )
-            )
-          )
-        )
-
-      private def homePage(balance: Money) =
-        html(
-          head(
-            meta(
-              charset := "UTF-8",
-              httpEquiv := "Content-Type",
-              content := "text/html"
-            ),
-            title := "With Vault, your money is secure !",
-            link(
-              rel := "stylesheet",
-              href := "https://unpkg.com/purecss@1.0.0/build/pure-min.css"
-            )
-          ),
-          body(
-            div(
-              id := "app-contents",
-              p(homeForm(balance))
-            ) /*,
-            script(
-              `type` := "text/javascript",
-              src := "js/app-jsdeps.js"
-            ),
-            script(
-              `type` := "text/javascript",
-              src := "js/app-fastopt.js"
-            )*/
-          )
-        ).render
-
-      private def balancePage(balance: Money) =
-        html(
-          head(
-            meta(
-              charset := "UTF-8",
-              httpEquiv := "Content-Type",
-              content := "text/html"
-            ),
-            title := "With Vault, your money is secure !",
-            link(
-              rel := "stylesheet",
-              href := "https://unpkg.com/purecss@1.0.0/build/pure-min.css"
-            )
-          ),
-          body(
-            div(
-              id := "app-contents",
-              p(s"Your current account balance is : $balance"),
-              p(a(href := "/", "Go back to home page"))
-            )
-          )
-        ).render
-
-      private def transferPage(to: NodeId, amount: Money) =
-        html(
-          head(
-            meta(
-              charset := "UTF-8",
-              httpEquiv := "Content-Type",
-              content := "text/html"
-            ),
-            title := "With Vault, your money is secure !",
-            link(
-              rel := "stylesheet",
-              href := "https://unpkg.com/purecss@1.0.0/build/pure-min.css"
-            )
-          ),
-          body(
-            div(
-              id := "app-contents",
-              p(s"Maybe the transfer of $amount to $to was successful. ",
-                a(href := "/balance", "Check your balance to make sure")),
-              p(a(href := "/", "Go back to home page"))
-            )
-          )
-        ).render
 
       private def okResp(res: String) =
         Ok(res).map(_.withContentType(`Content-Type`(`text/html`, Charset.`UTF-8`)))
@@ -184,28 +40,36 @@ object Server {
           for {
             id <- daemon.getNodeId
             balance <- accounts.balance(id)
-            response <- okResp(homePage(balance))
+            response <- okResp(Frontend.homePage(balance))
           } yield response
 
         case GET -> Root / "balance" =>
           for {
             id <- daemon.getNodeId
             balance <- accounts.balance(id)
-            response <- okResp(balancePage(balance))
+            response <- okResp(Frontend.balancePage(balance))
           } yield response
 
         case req @ POST -> Root / "transfer" =>
           req.decode[UrlForm] { data =>
             // TODO: Do not fail silently
             val to = tag[NodeIdTag][String](
-              data.values.get(beneficiaryFieldId).map(_.foldRight("")(_ + _)).getOrElse(""))
-            val amount = implicitly[ApplicativeError[F, Throwable]].fromEither(applyRef[Money](
-              data.values.get(amountFieldId).map(_.foldRight("")(_ + _)).getOrElse("0.0").toDouble)
-              .leftMap(_ => new IllegalArgumentException("Transfer amount should be positive.")))
+              data.values
+                .get(Frontend.beneficiaryFieldId)
+                .map(_.foldRight("")(_ + _))
+                .getOrElse(""))
+            val amount = implicitly[ApplicativeError[F, Throwable]].fromEither(
+              applyRef[Money](
+                data.values
+                  .get(Frontend.amountFieldId)
+                  .map(_.foldRight("")(_ + _))
+                  .getOrElse("0.0")
+                  .toDouble)
+                .leftMap(_ => new IllegalArgumentException("Transfer amount should be positive.")))
 
             for {
               amount <- amount
-              response <- accounts.transfer(to, amount) *> okResp(transferPage(to, amount))
+              response <- accounts.transfer(to, amount) *> okResp(Frontend.transferPage(to, amount))
             } yield response
           }
 

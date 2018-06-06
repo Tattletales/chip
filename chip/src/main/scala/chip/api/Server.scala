@@ -7,7 +7,7 @@ import cats.Applicative
 import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
-import chip.model.Tweet.Content
+import chip.model.Tweet.{Content, ContentTag}
 import chip.model.User.UsernameTag
 import chip.implicits._
 import chip.model.{Tweets, User, Users}
@@ -49,46 +49,27 @@ object Server {
       private val crypto = CryptoBits(key)
       private val clock = Clock.systemUTC
 
-      val page = {
-        html(
-          head(
-            meta(
-              charset := "UTF-8",
-              title := "Chip chip!",
-              link(
-                rel := "stylesheet",
-                href := "https://unpkg.com/purecss@1.0.0/build/pure-min.css"
-              )
-            )
-          ),
-          body(
-            div(
-              id := "app-contents"
-            ),
-            script(
-              `type` := "text/javascript",
-              src := "js/app-jsdeps.js"
-            ),
-            script(
-              `type` := "text/javascript",
-              src := "js/app-fastopt.js"
-            )
-          )
-        ).render
-      }
+      private def okResp(res: String) =
+        Ok(res).map(_.withContentType(`Content-Type`(`text/html`, Charset.`UTF-8`)))
 
       private val login: HttpService[F] = HttpService {
-        case GET -> Root / "login" / userName =>
-          for {
-            id <- daemon.getNodeId
-            user <- users.getUser(id).flatMap {
-              case Some(user) => implicitly[Applicative[F]].pure(user)
-              case None       => users.addUser(tag[UsernameTag][String](userName))
-            }
-            message = crypto.signToken(user.id, clock.millis.toString)
-            response <- Ok("Logged in!".asJson)
-              .map(_.addCookie(Cookie("authcookie", message, path = Some("/"))))
-          } yield response
+        case req @ POST -> Root / "login" =>
+          req.decode[UrlForm] { data =>
+            val userName =
+              data.values.get(Frontend.usrInputId).map(_.foldRight("")(_ + _)).getOrElse("")
+
+            for {
+              id <- daemon.getNodeId
+              user <- users.getUser(id).flatMap {
+                case Some(user) => implicitly[Applicative[F]].pure(user)
+                case None       => users.addUser(tag[UsernameTag][String](userName))
+              }
+              message = crypto.signToken(user.id, clock.millis.toString)
+              response <- Ok(Frontend.renderLoggedInPage)
+                .map(_.withContentType(`Content-Type`(`text/html`, Charset.`UTF-8`)))
+                .map(_.addCookie(Cookie("authcookie", message, path = Some("/"))))
+            } yield response
+          }
       }
 
       private def retrieveUser: Kleisli[F, NodeId, Either[String, User]] =
@@ -122,10 +103,12 @@ object Server {
 
       private val read: HttpService[F] = HttpService {
         case GET -> Root =>
-          Ok(page).map(
-            _.withContentType(`Content-Type`(`text/html`, Charset.`UTF-8`))
-              .putHeaders(`Cache-Control`(NonEmptyList.of(`no-cache`())))
+          okResp(Frontend.renderLoginForm).map(
+            _.putHeaders(`Cache-Control`(NonEmptyList.of(`no-cache`())))
           )
+
+        case GET -> Root / "chip" =>
+          okResp(Frontend.renderTweetingForm())
         case GET -> Root / "getTweets" / userName =>
           val response = for {
             user <- users.searchUser(tag[UsernameTag][String](userName)).map(_.head)
@@ -144,10 +127,17 @@ object Server {
 
       private val write: AuthedService[User, F] = AuthedService {
         case authedReq @ POST -> Root / "postTweet" as user =>
-          authedReq.req.as[Content].flatMap { body =>
-            val f = tweets.addTweet(user, body)
+          authedReq.req.decode[UrlForm] { data =>
+            val body = tag[ContentTag][String](
+              data.values.get(Frontend.chipInputFieldId).map(_.foldRight("")(_ + _)).getOrElse(""))
 
-            Ok(f.map(_.asJson))
+            if (body.nonEmpty) {
+              for {
+                _ <- tweets.addTweet(user, body)
+                response <- okResp(Frontend.renderTweetingForm())
+              } yield response
+            } else
+              okResp(Frontend.renderTweetingForm(Some("Cannot chip an empty message.")))
           }
       }
 
