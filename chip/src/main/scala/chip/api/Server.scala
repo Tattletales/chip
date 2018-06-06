@@ -42,7 +42,8 @@ object Server {
   def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
       users: Users[F],
       tweets: Tweets[F],
-      daemon: GossipDaemon[F, Event, E]): Server[F] =
+      daemon: GossipDaemon[F, Event, E],
+      port: Int): Server[F] =
     new Server[F] {
       private val key = PrivateKey(
         scala.io.Codec.toUTF8(scala.util.Random.alphanumeric.take(20).mkString("")))
@@ -108,7 +109,10 @@ object Server {
           )
 
         case GET -> Root / "chip" =>
-          okResp(Frontend.renderTweetingForm())
+          for {
+            tweets <- tweets.getAllTweets
+            response <- okResp(Frontend.renderTweetingForm(tweets))
+          } yield response
         case GET -> Root / "getTweets" / userName =>
           val response = for {
             user <- users.searchUser(tag[UsernameTag][String](userName)).map(_.head)
@@ -134,10 +138,16 @@ object Server {
             if (body.nonEmpty) {
               for {
                 _ <- tweets.addTweet(user, body)
-                response <- okResp(Frontend.renderTweetingForm())
+                tweets <- tweets.getAllTweets
+                response <- okResp(Frontend.renderTweetingForm(tweets))
               } yield response
-            } else
-              okResp(Frontend.renderTweetingForm(Some("Cannot chip an empty message.")))
+            } else {
+              for {
+                tweets <- tweets.getAllTweets
+                response <- okResp(
+                  Frontend.renderTweetingForm(tweets, Some("Cannot chip an empty message.")))
+              } yield response
+            }
           }
       }
 
@@ -145,7 +155,7 @@ object Server {
 
       val run: Stream[F, ExitCode] = {
         BlazeBuilder[F]
-          .bindHttp(8080, "localhost")
+          .bindHttp(port, "localhost")
           .mountService(service, "/")
           .serve
       }

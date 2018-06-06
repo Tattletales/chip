@@ -29,26 +29,62 @@ object Frontend {
       )
     )
 
-  private[api] def renderTweet(t: Tweet): String =
+  private[api] def tweetDiv(t: Tweet): TypedTag[String] =
     div(
       `class` := "tweet",
       p(s"${t.userId}: ${t.content}")
-    ).render
+    )
 
-  private[api] def renderTweetingForm(msg: Option[String] = None): String = {
-    val message = msg.map { m =>
-      p(
-        style := "border: 1px solid red; background: rgba(255, 0, 0, 0.2);",
-        m
-      )
-    }.getOrElse(p())
+  private[api] def renderTweetingForm(tweets: List[Tweet], msg: Option[String] = None): String = {
+    val message = msg
+      .map { m =>
+        p(
+          style := "border: 1px solid red; padding: 5px; background: rgba(255, 0, 0, 0.2);",
+          m
+        )
+      }
+      .getOrElse(p())
+
+    val refreshButton = button(
+      `class` := "pure-button button-secondary",
+      onclick :=
+        """
+          |var xhr = new XMLHttpRequest();
+          |xhr.onreadystatechange = function() {
+          |
+          |  if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 0)) {
+          |     var data = JSON.parse(xhr.responseText);
+          |     var tweets = document.getElementById('tweets-container');
+          |     tweets.innerHTML = '';
+          |
+          |     if (data.length == 0)
+          |       return;
+          |
+          |     for (i = 0; i < data.length; i++) {
+          |       var t = data[i];
+          |       var formatted = '<div class=\'tweet\'><p>' + t.userId + ': ' + t.content + '</p></div>';
+          |       tweets.innerHTML += formatted;
+          |     }
+          |
+          |     tweets.scrollTop = tweets.scrollHeight;
+          |  }
+          |
+          |};
+          |xhr.open('GET', '/getAllTweets');
+          |xhr.send(null);
+        """.stripMargin,
+      "Refresh messages"
+    )
 
     val tweetingForm = div(
       id := "tweets-main-block",
       div(
         id := "tweets-container",
-        `class` := "container"
+        `class` := "container",
+        style := "padding: 10px; border: 1px solid #777; max-height: 300px; overflow: auto;",
+        for (t <- tweets) yield tweetDiv(t)
       ),
+      refreshButton,
       message,
       form(
         action := "postTweet",

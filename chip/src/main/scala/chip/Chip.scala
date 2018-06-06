@@ -86,9 +86,9 @@ class Chip[F[_]: Effect: Timer] extends StreamApp[F] {
 
         replicator = Replicator[F](db, daemon.rmap(_.payload.as[Event].right.get).subscribe)
 
-        server = Server.authed(users, tweets, daemon).run.map(_ => ())
+        server = Server.authed(users, tweets, daemon, 8080 + nodeNumber).run.map(_ => ())
 
-        ec <- Stream[Stream[F, Unit]](initTables, replicator, server)
+        ec <- initTables.drain ++ Stream[Stream[F, Unit]](replicator, server)
           .join[F, Unit](2)
           .drain ++ Stream.emit(ExitCode.Success)
       } yield ec
