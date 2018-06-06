@@ -48,5 +48,6 @@ libraryDependencies ++= Seq(
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
   "com.typesafe" % "config" % "1.3.2",
   "com.github.pureconfig" %% "pureconfig" % "0.9.1",
-  "com.github.pureconfig" %% "pureconfig-cats" % "0.9.1"
+  "com.github.pureconfig" %% "pureconfig-cats" % "0.9.1",
+  "com.h2database" % "h2" % "1.4.197"
 )

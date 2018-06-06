@@ -30,6 +30,7 @@ import chip.events.ReplicateEvents.Event
 import backend.implicits._
 import eu.timepit.refined.api.RefType.applyRef
 import config._
+import doobie.implicits._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -57,7 +58,15 @@ class Chip[F[_]: Effect: Timer] extends StreamApp[F] {
       val nodeIdRoute: Route = applyRef[Route](conf.nodeIdRoute.value ++ s"/$nodeId").right.get
       val wsRoute: Route = applyRef[Route](conf.webSocketRoute.value ++ s"/$nodeId").right.get
 
-      val db = database(xa)
+      val db = database(xb)
+
+      val initTables = Stream.eval(
+        db.insert(
+          sql"""DROP TABLE IF EXISTS users""",
+          sql"""CREATE TABLE users (id VARCHAR NOT NULL UNIQUE, name VARCHAR NOT NULL)""",
+          sql"""DROP TABLE IF EXISTS tweets""",
+          sql"""CREATE TABLE tweets (user_id VARCHAR NOT NULL, content VARCHAR NOT NULL)"""
+        ))
 
       for {
         httpClient <- httpClient
@@ -79,15 +88,14 @@ class Chip[F[_]: Effect: Timer] extends StreamApp[F] {
 
         server = Server.authed(users, tweets, daemon).run.map(_ => ())
 
-        ec <- Stream[Stream[F, Unit]](replicator, server).join[F, Unit](2).drain ++ Stream.emit(
-          ExitCode.Success)
+        ec <- Stream[Stream[F, Unit]](initTables, replicator, server)
+          .join[F, Unit](2)
+          .drain ++ Stream.emit(ExitCode.Success)
       } yield ec
     }
 
-  val xa: Transactor[F] = Transactor.fromDriverManager[F](
-    "org.postgresql.Driver", // driver classname
-    "jdbc:postgresql:chip_db", // connect URL (driver-specific)
-    "florian", // user
-    "mJ9da5mPHniKrsr8KeYx" // password
+  val xb: Transactor[F] = Transactor.fromDriverManager[F](
+    "org.h2.Driver",
+    "jdbc:h2:mem:chip_db;DB_CLOSE_DELAY=-1"
   )
 }
