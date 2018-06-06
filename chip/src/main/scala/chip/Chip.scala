@@ -3,7 +3,6 @@ package chip
 import backend.events.{PayloadTag, WSEvent}
 import backend.gossip.Node.NodeIdTag
 import backend.gossip._
-import backend.implicits._
 import backend.network._
 import backend.network.Route
 import backend.storage._
@@ -18,13 +17,19 @@ import chip.model.{Tweets, Users}
 import doobie.util.transactor.Transactor
 import io.circe.Json
 import io.circe.generic.auto._
+import io.circe.refined._
 import io.circe.syntax._
 import fs2.StreamApp.ExitCode
 import fs2._
 import org.http4s.circe._
+
+import eu.timepit.refined.auto._
 import shapeless.tag
 import backend.events.EventTypable.ops._
 import chip.events.ReplicateEvents.Event
+import backend.implicits._
+import eu.timepit.refined.api.RefType.applyRef
+import config._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -37,11 +42,20 @@ class Chip[F[_]: Effect: Timer] extends StreamApp[F] {
         .map(_.toInt)
         .getOrElse(throw new IllegalArgumentException("The node number needs to be provided!"))
 
-      val nodeIds = NonEmptyList.fromListUnsafe(args.tail.map(tag[NodeIdTag][String]))
+      val conf =
+        if (args.length == 1) ChipConfig.config
+        else
+          ChipConfig.config.copy(
+            nodeIds = NonEmptyList.fromListUnsafe(args.tail.map(tag[NodeIdTag][String])))
 
-      val logRoute: Route = ???
-      val nodeIdRoute: Route = ???
-      val wsRoute: Route = ???
+      val nodeId = conf.nodeIds
+        .get(nodeNumber)
+        .getOrElse(
+          throw new IllegalArgumentException(s"No node id corresponding to node #$nodeNumber."))
+
+      val logRoute: Route = applyRef[Route](conf.logRoute.value ++ s"/$nodeId").right.get
+      val nodeIdRoute: Route = applyRef[Route](conf.nodeIdRoute.value ++ s"/$nodeId").right.get
+      val wsRoute: Route = applyRef[Route](conf.webSocketRoute.value ++ s"/$nodeId").right.get
 
       val db = database(xa)
 
@@ -49,7 +63,7 @@ class Chip[F[_]: Effect: Timer] extends StreamApp[F] {
         httpClient <- httpClient
         wsClient <- Stream.eval(webSocketClient[F, Event, WSEvent](wsRoute))
 
-        daemon = gossipDaemon(nodeIdRoute, logRoute)(nodeIds.head)(httpClient, wsClient)
+        daemon = gossipDaemon(nodeIdRoute, logRoute)(nodeId)(httpClient, wsClient)
 
         users = Users.replicated[F, WSEvent](
           db,

@@ -11,7 +11,6 @@ import backend.gossip._
 import Node.NodeIdTag
 import backend.storage._
 import backend.network._
-import backend.implicits._
 import backend.events._
 import vault.model.{Money, User}
 import org.http4s.circe._
@@ -60,11 +59,7 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         wsClient <- Stream.eval(
           webSocketClient[F, TransactionStage, WSEvent](webSocketRouteWithNodeId))
 
-        daemon = gossipDaemon(nodeIdRouteWithNodeId, logRouteWithNodeId)(
-          conf.nodeIds
-            .get(nodeNumber)
-            .getOrElse(throw new IllegalArgumentException(
-              s"No node id corresponding to node #$nodeNumber.")))(httpClient, wsClient)
+        daemon = gossipDaemon(nodeIdRouteWithNodeId, logRouteWithNodeId)(nodeId)(httpClient, wsClient)
 
         loggingDaemon = conf.logFile match {
           case Some(path) => logToFile(path)(daemon)

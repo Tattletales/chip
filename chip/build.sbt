@@ -19,9 +19,11 @@ libraryDependencies ++= Seq(
   "io.circe" %%% "circe-generic" % circeVersion,
   "io.circe" %%% "circe-literal" % circeVersion,
   "io.circe" %%% "circe-parser" % circeVersion,
+  "io.circe" %%% "circe-refined" % circeVersion,
   compilerPlugin(("org.scalamacros" % "paradise" % "2.1.1").cross(CrossVersion.full)),
   compilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
   compilerPlugin(("org.scalameta" % "paradise" % "3.0.0-M11").cross(CrossVersion.full)),
+  compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.2.4"),
   "org.typelevel" %% "cats-core" % "1.1.0",
   "org.typelevel" %% "cats-effect" % "1.0.0-RC",
   "org.tpolecat" %% "doobie-core" % "0.5.2",
@@ -44,5 +46,7 @@ libraryDependencies ++= Seq(
   "org.reactormonk" %% "cryptobits" % "1.1",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
-  "com.typesafe" % "config" % "1.3.2"
+  "com.typesafe" % "config" % "1.3.2",
+  "com.github.pureconfig" %% "pureconfig" % "0.9.1",
+  "com.github.pureconfig" %% "pureconfig-cats" % "0.9.1"
 )
