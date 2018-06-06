@@ -16,7 +16,6 @@ import backend.events._
 import vault.model.{Money, User}
 import org.http4s.circe._
 import vault.events.{TransactionStage, TransactionsHandler}
-import vault.implicits._
 import backend.implicits._
 import vault.api.Server
 import vault.model._

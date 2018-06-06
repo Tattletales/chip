@@ -48,8 +48,6 @@ trait GossipDaemon[F[_], E1, E2] {
 }
 
 object GossipDaemon {
-  final case class Event(eventType: EventType, payload: Payload)
-
   /* ------ Interpreters ------*/
 
   /**
@@ -120,8 +118,7 @@ object GossipDaemon {
     */
   def webSocket[F[_], E: Encoder](nodeIdRoute: Route, logRoute: Route)(
       nodeId: Option[NodeId])(httpClient: HttpClient[F], ws: WebSocketClient[F, E, WSEvent])(
-      implicit F: MonadError[F, Throwable],
-      E: EventTyper[E]): GossipDaemon[F, E, WSEvent] =
+      implicit F: MonadError[F, Throwable]): GossipDaemon[F, E, WSEvent] =
     new GossipDaemon[F, E, WSEvent] {
 
       /**

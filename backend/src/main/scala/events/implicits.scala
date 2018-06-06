@@ -34,4 +34,7 @@ trait implicits {
 
   implicit def eventTypeDecoder(implicit D: Decoder[String]): Decoder[EventType] =
     D.map(tag[EventTypeTag][String])
+
+  implicit def eventTypeEncoder(implicit E: Encoder[String]): Encoder[EventType] =
+    E.contramap(a => a)
 }

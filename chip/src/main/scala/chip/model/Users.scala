@@ -71,6 +71,11 @@ object UsersEvents {
       val eventType: EventType = tag[EventTypeTag][String]("Users")
     }
 
+    implicit val eventTypableUsersEvent: EventTypable[UsersEvent] =
+      new EventTypable[UsersEvent] {
+        def eventType(e: UsersEvent): EventType = tag[EventTypeTag][String]("Users")
+      }
+
     implicit val replicableUsersEvent: Replicable[UsersEvent] =
       new Replicable[UsersEvent] {
         def replicate[F[_]: Effect](db: Database[F]): UsersEvent => F[Unit] = {
