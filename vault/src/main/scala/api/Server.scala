@@ -7,7 +7,7 @@ import cats.implicits._
 import fs2.Stream
 import fs2.StreamApp.ExitCode
 import backend.gossip.GossipDaemon
-import backend.gossip.Node.{NodeId, NodeIdTag}
+import backend.gossip.Node.NodeIdTag
 import cats.ApplicativeError
 import eu.timepit.refined.api.RefType.applyRef
 import io.circe._
@@ -18,7 +18,7 @@ import org.http4s.headers.{Cookie => _, _}
 import org.http4s.server.blaze.BlazeBuilder
 import backend.programs.Program
 import shapeless.tag
-import scalatags.Text.all.{body, form, _}
+import scalatags.Text.all._
 import vault.events.TransactionStage
 import vault.model.Money
 import vault.model.Accounts

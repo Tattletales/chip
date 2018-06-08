@@ -2,12 +2,11 @@ package chip.events
 
 import cats.effect.Effect
 import cats.implicits._
-import backend.events.{EventTypable, EventType, EventTyper, Payload}
+import backend.events.{EventType, EventTyper, Payload}
 import io.circe.Decoder
 import shapeless.{::, HList, HNil}
 import simulacrum._
 import backend.storage.Database
-import backend.gossip.Gossipable
 import chip.events.ReplicateEvents.Event
 
 /**

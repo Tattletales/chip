@@ -7,7 +7,7 @@ import cats.Applicative
 import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
-import chip.model.Tweet.{Content, ContentTag}
+import chip.model.Tweet.ContentTag
 import chip.model.User.UsernameTag
 import chip.implicits._
 import chip.model.{Tweets, User, Users}
@@ -30,7 +30,7 @@ import org.http4s.server.AuthMiddleware
 import org.http4s.server.blaze.BlazeBuilder
 import org.reactormonk.{CryptoBits, PrivateKey}
 import shapeless.tag
-import scalatags.Text.all.{body, _}
+import scalatags.Text.all._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

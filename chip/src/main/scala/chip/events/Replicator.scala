@@ -1,6 +1,5 @@
 package chip.events
 
-import backend.gossip.Gossipable
 import backend.storage.Database
 import backend.implicits._
 import cats.effect.Effect
