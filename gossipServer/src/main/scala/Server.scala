@@ -8,7 +8,7 @@ import cats.data.NonEmptyList
 import cats.effect.{Effect, IO}
 import cats.implicits._
 import fs2.StreamApp.ExitCode
-import fs2.{Stream, StreamApp, async}
+import fs2.{Scheduler, Stream, StreamApp, async}
 import org.http4s.server.blaze.BlazeBuilder
 import eu.timepit.refined.pureconfig._
 import pureconfig._
@@ -41,11 +41,12 @@ class Server[F[_]: Effect] extends StreamApp[F] {
       conf.nodeIds.traverse(nodeId => async.refOf[F, Int](0).map((nodeId, _))).map(_.toList.toMap)
 
     for {
+      scheduler <- Scheduler[F](2)
       eventQueues <- Stream.eval[F, Map[NodeId, Queue[F, WSEvent]]](eventQueues)
       eventIds <- Stream.eval[F, Map[NodeId, Ref[F, Int]]](eventIds)
       store = KVStore.mutableMap[F, NodeId, List[WSEvent]]
       _ <- Stream.eval[F, Unit](conf.nodeIds.traverse(store.put(_, List.empty)).map(_ => ()))
-      service = GossipServer.webSocket(eventQueues, eventIds, store).service
+      service = GossipServer.webSocket(eventQueues, eventIds, store)(scheduler).service
 
       server <- BlazeBuilder[F]
         .withIdleTimeout(Duration.Inf)

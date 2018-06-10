@@ -9,7 +9,7 @@ import cats.implicits._
 import org.http4s._
 import org.http4s.dsl.io._
 import backend.storage.KVStore
-import fs2.{Pipe, Sink}
+import fs2.{Pipe, Scheduler, Sink, Stream}
 import fs2.async.Ref
 import fs2.async.mutable.Queue
 import io.circe.Json
@@ -20,6 +20,10 @@ import io.circe.generic.auto._
 import org.http4s.ServerSentEvent.EventId
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebsocketBits.{Text, WebSocketFrame}
+import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
+import scala.util.Random
+import scala.concurrent.ExecutionContext.Implicits.global
 
 sealed trait GossipServer[F[_], O] {
   def service: HttpService[F]
@@ -80,10 +84,10 @@ object GossipServer {
         } yield ()
     }
 
-  def webSocket[F[_]](
-      eventQueues: Map[NodeId, Queue[F, WSEvent]],
-      eventIds: Map[NodeId, Ref[F, Int]],
-      logs: KVStore[F, NodeId, List[WSEvent]])(implicit F: Effect[F]): GossipServer[F, WSEvent] =
+  def webSocket[F[_]](eventQueues: Map[NodeId, Queue[F, WSEvent]],
+                      eventIds: Map[NodeId, Ref[F, Int]],
+                      logs: KVStore[F, NodeId, List[WSEvent]])(scheduler: Scheduler)(
+      implicit F: Effect[F]): GossipServer[F, WSEvent] =
     new GossipServer[F, WSEvent] {
       def service: HttpService[F] = HttpService[F] {
         case GET -> Root / "gossip" / nodeId =>
@@ -96,31 +100,36 @@ object GossipServer {
       /**
         * Queue and log the incoming events sent by nodeId to be sent to all the nodes.
         */
-      private def handleIncoming(nodeId: NodeId): Sink[F, WebSocketFrame] = {
-        def addToLogs(event: WSEvent): F[Unit] =
-          logs.keys.flatMap(_.toList.traverse(addToLog(_, event)).void)
-
-        def addToQueues(event: WSEvent): F[Unit] =
-          eventQueues.values.toList.traverse(_.enqueue1(event)).void
-
-        _.evalMap {
+      private def handleIncoming(nodeId: NodeId): Sink[F, WebSocketFrame] =
+        _.flatMap {
           case Text(payload, _) =>
             for {
-              eventId <- eventIds(tag[NodeIdTag][String](nodeId)).get
-              _ <- eventIds(tag[NodeIdTag][String](nodeId)).setSync(eventId + 1)
+              eventId <- Stream.eval(eventIds(tag[NodeIdTag][String](nodeId)).get)
+              _ <- Stream.eval(eventIds(tag[NodeIdTag][String](nodeId)).setSync(eventId + 1))
 
-              payload <- F.fromEither(parse(payload)).map(tag[PayloadTag][Json])
+              payload <- Stream.eval(F.fromEither(parse(payload)).map(tag[PayloadTag][Json]))
               event = WSEvent(Lsn(nodeId, tag[EventIdTag][Int](eventId)), payload)
 
-              _ <- addToLogs(event)
-              _ <- addToQueues(event)
+              _ <- Stream(eventIds.keys)
+                .covary[F]
+                .flatMap(_.toList.traverse(addToLogAndQueueWithDelay(_, event)))
+                .void
             } yield ()
+
         }
-      }
 
       private val handleOutgoing: Pipe[F, WSEvent, WebSocketFrame] = _.map { event =>
         Text(event.asJson.noSpaces)
       }
+
+      private def addToLogAndQueueWithDelay(nodeId: NodeId, event: WSEvent): Stream[F, Unit] =
+        for {
+          _ <- scheduler.sleep_({
+            val t = Random.nextInt(500)
+            println(s"Delay by ${t}ms for $nodeId")
+            FiniteDuration(t, MILLISECONDS)
+          }) ++ Stream.eval(addToLog(nodeId, event) *> addToQueue(nodeId, event))
+        } yield ()
 
       /**
         * Add the event to the log of nodeId.
@@ -131,6 +140,9 @@ object GossipServer {
           currentLog = maybeCurrentLog.get
           _ <- logs.put(nodeId, event :: currentLog)
         } yield ()
+
+      private def addToQueue(nodeId: NodeId, event: WSEvent): F[Unit] =
+        eventQueues(nodeId).enqueue1(event)
     }
 
 }
