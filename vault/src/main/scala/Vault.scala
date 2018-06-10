@@ -59,7 +59,8 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
         wsClient <- Stream.eval(
           webSocketClient[F, TransactionStage, WSEvent](webSocketRouteWithNodeId))
 
-        daemon = gossipDaemon(nodeIdRouteWithNodeId, logRouteWithNodeId)(nodeId)(httpClient, wsClient)
+        daemon = gossipDaemon(nodeIdRouteWithNodeId, logRouteWithNodeId)(nodeId)(httpClient,
+                                                                                 wsClient)
 
         loggingDaemon = conf.logFile match {
           case Some(path) => logToFile(path)(daemon)

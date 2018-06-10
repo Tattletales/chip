@@ -39,11 +39,10 @@ trait Server[F[_]] extends Http4sDsl[F] {
 }
 
 object Server {
-  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
-      users: Users[F],
-      tweets: Tweets[F],
-      daemon: GossipDaemon[F, Event, E],
-      port: Int): Server[F] =
+  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](users: Users[F],
+                                                            tweets: Tweets[F],
+                                                            daemon: GossipDaemon[F, Event, E],
+                                                            port: Int): Server[F] =
     new Server[F] {
       private val key = PrivateKey(
         scala.io.Codec.toUTF8(scala.util.Random.alphanumeric.take(20).mkString("")))
