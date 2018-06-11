@@ -8,7 +8,8 @@ import backend.implicits._
 import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.network.{HttpClient, Route, WebSocketClient}
 import cats.arrow.Profunctor
-import cats.effect.{Effect, Sync}
+import cats.effect.Async.shift
+import cats.effect.{Async, Effect, Sync}
 import cats.implicits._
 import cats.{Functor, MonadError}
 import fs2.Stream
@@ -17,6 +18,7 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import shapeless.tag
+import threadPools.ThreadPools.{BlockingIOThreadPool, MainThreadPool}
 import utils.stream.Utils.log
 
 /**
@@ -197,10 +199,15 @@ object GossipDaemon {
         * Log `e` to the file at path [[path]]
         */
       private def log[E](e: E): F[Unit] =
-        daemon.getNodeId.map { nId =>
-          bw.write(s"${System.currentTimeMillis()} $nId SENT $e \n")
-          bw.flush()
-        }
+        for {
+          nId <- daemon.getNodeId
+          _ <- shift(BlockingIOThreadPool) // shift to pool for blocking io
+          _ <- F.delay {
+            bw.write(s"${System.currentTimeMillis()} $nId SENT $e \n")
+            bw.flush()
+          }
+          _ <- shift(MainThreadPool) // shift back to the main pool
+        } yield ()
     }
 
   /**

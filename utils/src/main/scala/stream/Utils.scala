@@ -16,7 +16,7 @@ object Utils {
   }
 
   def logToFile[F[_], A](prefix: String, path: String)(implicit F: Effect[F]): Pipe[F, A, A] = {
-    implicit val e: ExecutionContext = ThreadPools.ioThreadPool
+    implicit val e: ExecutionContext = ThreadPools.BlockingIOThreadPool
 
     _.flatMap(a => {
       val writeToFile = io.writeOutputStreamAsync[F](
