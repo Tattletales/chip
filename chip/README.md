@@ -1,7 +1,7 @@
 # Chip Application
 
 This is a sample application providing a basic messaging system inspired by Twitter.
-It is fully dependent of the [backend subproject](../backend/README.md).
+It is fully dependent of the [backend subproject](../backend).
 
 ## Configuration
 

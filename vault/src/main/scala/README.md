@@ -1,3 +1,0 @@
-# Vault Application
-
-## Frontend details

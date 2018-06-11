@@ -1,3 +1,0 @@
-# Chip Application
-
-## Frontend details
