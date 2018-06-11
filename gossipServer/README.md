@@ -7,6 +7,8 @@ In order to simulate the latencies in the system, the system waits a random amou
 gossiping to every node and logging it. Warning: the `serverSentEvent` interpreter does not simulate latencies. 
 Only the `webSocket` interpreter does.
 
+The adress of the server is `localhost:59234`.
+
 ## Configuration
 The identifiers of the nodes in the system have to be known in advance.
 Therefore, they have to provided before running the server.
