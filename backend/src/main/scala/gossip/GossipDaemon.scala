@@ -64,13 +64,6 @@ object GossipDaemon {
       implicit F: MonadError[F, Throwable],
       E: EventTyper[E]): GossipDaemon[F, E, SSEvent] =
     new GossipDaemon[F, E, SSEvent] {
-
-      /**
-        * @see [[GossipDaemon.getNodeId]]
-        *
-        * Failures:
-        *   - [[NodeIdError]] if the node id cannot be retrieved.
-        */
       def getNodeId: F[NodeId] = nodeId match {
         case Some(nodeId) => F.pure(nodeId)
         case None =>
@@ -89,20 +82,11 @@ object GossipDaemon {
           "d" -> e.asJson.noSpaces
         )
 
-        for {
-          n <- getNodeId
-          _ <- httpClient.postFormAndIgnore(sendRoute, form)
-        } yield ()
+        httpClient.postFormAndIgnore(sendRoute, form)
       }
 
       def subscribe: Stream[F, SSEvent] = subscriber.subscribe(subscribeRoute)
 
-      /**
-        * @see [[GossipDaemon.getLog]]
-        *
-        * Failures:
-        *   - [[LogRetrievalError]] if the log cannot be retrieved.
-        */
       def getLog: F[List[SSEvent]] =
         httpClient
           .get[Json](logRoute)
@@ -122,13 +106,6 @@ object GossipDaemon {
       nodeId: Option[NodeId])(httpClient: HttpClient[F], ws: WebSocketClient[F, E, WSEvent])(
       implicit F: MonadError[F, Throwable]): GossipDaemon[F, E, WSEvent] =
     new GossipDaemon[F, E, WSEvent] {
-
-      /**
-        * @see [[GossipDaemon.getNodeId]]
-        *
-        * Failures:
-        *   - [[NodeIdError]] if the node id cannot be retrieved.
-        */
       def getNodeId: F[NodeId] = nodeId match {
         case Some(nodeId) => F.pure(nodeId)
         case None =>
@@ -145,12 +122,6 @@ object GossipDaemon {
 
       def subscribe: Stream[F, WSEvent] = ws.receive
 
-      /**
-        * @see [[GossipDaemon.getLog]]
-        *
-        * Failures:
-        *   - [[LogRetrievalError]] if the log cannot be retrieved.
-        */
       def getLog: F[List[WSEvent]] =
         httpClient
           .get[Json](logRoute)
@@ -160,50 +131,35 @@ object GossipDaemon {
           .adaptError {
             case _ => LogRetrievalError
           }
-
     }
 
   /**
-    * Add logging of sent events.
+    * Add logging to the file `path` (append) of the sent events.
+    * Messages are logged in the format `timeSinceEpochInMs nodeId SENT event`
     */
   def logging[F[_], E1, E2](path: String)(daemon: GossipDaemon[F, E1, E2])(
-      implicit F: Effect[F]): GossipDaemon[F, E1, E2] =
+      implicit F: Async[F]): GossipDaemon[F, E1, E2] =
     new GossipDaemon[F, E1, E2] {
       private val file = new File(path)
       private val bw = new BufferedWriter(new FileWriter(file, true))
 
-      /**
-        * @see [[GossipDaemon.getNodeId]]
-        */
       def getNodeId: F[NodeId] = daemon.getNodeId
 
-      /**
-        * @see [[GossipDaemon.send]]
-        *
-        * Logs `e`.
-        */
-      def send(e: E1): F[Unit] =
-        log(e) >> daemon.send(e)
+      def send(e: E1): F[Unit] = log(e) *> daemon.send(e)
 
-      /**
-        * @see [[GossipDaemon.subscribe]]
-        */
       def subscribe: Stream[F, E2] = daemon.subscribe
 
-      /**
-        * @see [[GossipDaemon.getLog]]
-        */
       def getLog: F[List[E2]] = daemon.getLog
 
       /**
-        * Log `e` to the file at path [[path]]
+        * Log `e` to the file at path [[path]] with the format `timeSinceEpochInMs nodeId SENT e`
         */
       private def log[E](e: E): F[Unit] =
         for {
           nId <- daemon.getNodeId
           _ <- shift(BlockingIOThreadPool) // shift to pool for blocking io
           _ <- F.delay {
-            bw.write(s"${System.currentTimeMillis()} $nId SENT $e \n")
+            bw.write(s"${System.currentTimeMillis()} $nId SENT $e\n")
             bw.flush()
           }
           _ <- shift(MainThreadPool) // shift back to the main pool

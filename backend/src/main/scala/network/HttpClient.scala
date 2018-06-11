@@ -65,11 +65,6 @@ object HttpClient {
       def get[Response: Decoder](uri: Uri): F[Response] =
         client.expect(Http4sUri.unsafeFromString(uri.value))(jsonOf[F, Response])
 
-      /**
-        * @see [[HttpClient.getAndIgnore]]
-        *
-        * Fails with [[FailedRequestResponse]] if the request failed.
-        */
       def getAndIgnore(uri: Uri): F[Unit] =
         client.get(Http4sUri.unsafeFromString(uri.value)) {
           case Status.Successful(_) => F.unit
@@ -79,24 +74,12 @@ object HttpClient {
       def post[T: Encoder, Response: Decoder](uri: Uri, body: T): F[Response] =
         client.expect(genPostReq(uri, body.asJson.noSpaces))(jsonOf[F, Response])
 
-      /**
-        * @see [[HttpClient.postAndIgnore]]
-        *
-        * Failures:
-        *   - [[FailedRequestResponse]] if the request failed
-        */
       def postAndIgnore[T: Encoder](uri: Uri, body: T): F[Unit] =
         client.fetch(genPostReq(uri, body.asJson.noSpaces)) {
           case Status.Successful(_) => F.unit
           case _                    => F.raiseError(FailedRequestResponse(uri))
         }
 
-      /**
-        * @see [[HttpClient.postFormAndIgnore]]
-        *
-        * Failures:
-        *   - [[FailedRequestResponse]] if the request failed
-        */
       def postFormAndIgnore(uri: Uri, form: Map[String, String]): F[Unit] = {
         val form0 = UrlForm(form.toSeq: _*)
         val body = UrlForm.encodeString(Charset.`UTF-8`)(form0)

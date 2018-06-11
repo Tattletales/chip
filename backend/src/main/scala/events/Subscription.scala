@@ -10,11 +10,10 @@ import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.Sink
 import backend.errors.MalformedSSE
 import backend.gossip.Node.NodeIdTag
+import backend.network.Uri
 import cats.data.OptionT
 import cats.effect.Effect
 import cats.implicits._
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.string.Uri
 import fs2.interop.reactivestreams._
 import fs2.{Pipe, Stream}
 import io.circe.Json
@@ -34,7 +33,7 @@ trait Subscription[F[_], E] {
   /**
     * Subscribe to the event stream
     */
-  def subscribe(uri: String Refined Uri): Stream[F, E]
+  def subscribe(uri: Uri): Stream[F, E]
 }
 
 object Subscription {
@@ -55,7 +54,7 @@ object Subscription {
         * Failures:
         *   - [[MalformedSSE]] TODO documentation
         */
-      def subscribe(uri: String Refined Uri): Stream[F, SSEvent] = {
+      def subscribe(uri: Uri): Stream[F, SSEvent] = {
         val eventSource = EventSource(
           AkkaUri(uri.value),
           (a: HttpRequest) =>

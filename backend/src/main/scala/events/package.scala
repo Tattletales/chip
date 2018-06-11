@@ -17,5 +17,8 @@ package object events {
 
   final case class Lsn(nodeId: NodeId, eventId: EventId)
 
+  /**
+    * Create a `Subscription` using Server Sent Events.
+    */
   def subscription[F[_]: Effect]: Subscription[F, SSEvent] = Subscription.serverSentEvent
 }

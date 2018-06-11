@@ -25,6 +25,10 @@ trait WebSocketClient[F[_], M1, M2] {
 }
 
 object WebSocketClient {
+
+  /**
+    * Interpreter to `AkkaHTTP`
+    */
   def akkaHttp[F[_]: Timer: Effect, M1: Encoder, M2: Decoder](
       route: Route)(incomingQueue: Queue[F, M2], outgoingQueue: Queue[F, M1])(
       implicit F: ApplicativeError[F, Throwable]): WebSocketClient[F, M1, M2] =
@@ -35,6 +39,9 @@ object WebSocketClient {
       def send(message: M1): F[Unit] = outgoingQueue.enqueue1(message)
       def receive: Stream[F, M2] = incomingQueue.dequeue
 
+      /**
+        * Sink handling incoming messages (from the server).
+        */
       private val incoming: AkkaSink[Message, Future[Done]] = AkkaSink.fromGraph(Sink[F, Message] {
         case m: TextMessage.Strict =>
           F.fromEither(decode[M2](m.text)).flatMap(incomingQueue.enqueue1)
@@ -42,6 +49,9 @@ object WebSocketClient {
           F.fromEither(decode[M2](m.getStrictText)).flatMap(incomingQueue.enqueue1)
       }.toSink)
 
+      /**
+        * Source generating messages to be sent to the server.
+        */
       private val outgoing: AkkaSource[Message, NotUsed] =
         AkkaSource
           .fromGraph(
@@ -49,18 +59,12 @@ object WebSocketClient {
 
       private val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(AkkaUri(route.value)))
 
-      private val (upgradeResponse, _) =
-        outgoing
-          .viaMat(webSocketFlow)(Keep.right) // keep the materialized Future[WebSocketUpgradeResponse]
-          .toMat(incoming)(Keep.both) // also keep the Future[Done]
-          .run()
-
-      //private val _ = upgradeResponse.flatMap { upgrade =>
-      //  if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
-      //    Future.successful(Done)
-      //  } else {
-      //    throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
-      //  }
-      //}
+      /**
+        * Ignore connection success/failure because YOLO.
+        */
+      private val _ = outgoing
+        .viaMat(webSocketFlow)(Keep.right) // keep the materialized Future[WebSocketUpgradeResponse]
+        .toMat(incoming)(Keep.both) // also keep the Future[Done]
+        .run()
     }
 }

@@ -8,6 +8,9 @@ import cats.effect.Effect
 import io.circe.Encoder
 
 package object gossip {
+  /**
+    * Create a [[GossipDaemon]] using the WebSocket protocol.
+    */
   def gossipDaemon[F[_]: MonadError[?[_], Throwable], E: Encoder](nodeIdRoute: Route,
                                                                   logRoute: Route)(nodeId: NodeId)(
       httpClient: HttpClient[F],
