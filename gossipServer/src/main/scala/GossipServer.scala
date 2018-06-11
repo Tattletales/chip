@@ -26,11 +26,18 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
 import scala.util.Random
 
+/**
+  * GossipServer DSL
+  */
 sealed trait GossipServer[F[_], O] {
   def service: HttpService[F]
 }
 
 object GossipServer {
+
+  /**
+    * Server using Server Sent Events
+    */
   def serverSentEvent(nodes: List[String])(eventQueues: Map[NodeId, Queue[IO, ServerSentEvent]],
                                            eventIds: Map[NodeId, Ref[IO, Int]],
                                            logs: KVStore[IO, NodeId, List[ServerSentEvent]])(
@@ -85,6 +92,9 @@ object GossipServer {
         } yield ()
     }
 
+  /**
+    * Server using WebSockets
+    */
   def webSocket[F[_]](eventQueues: Map[NodeId, Queue[F, WSEvent]],
                       eventIds: Map[NodeId, Ref[F, Int]],
                       logs: KVStore[F, NodeId, List[WSEvent]])(
@@ -119,10 +129,17 @@ object GossipServer {
 
         }
 
+      /**
+        * Decode the event and store it in a `WebSocketFrame`.
+        */
       private val handleOutgoing: Pipe[F, WSEvent, WebSocketFrame] = _.map { event =>
         Text(event.asJson.noSpaces)
       }
 
+      /**
+        * Add `event` to the log and message queue of `nodeId` after a random delay between
+        * 0 and 500ms.
+        */
       private def addToLogAndQueueWithDelay(nodeId: NodeId, event: WSEvent): Stream[F, Unit] =
         for {
           _ <- scheduler.sleep_({
@@ -142,6 +159,9 @@ object GossipServer {
           _ <- logs.put(nodeId, event :: currentLog)
         } yield ()
 
+      /**
+        * Add `event` the message queue of `nodeId`.
+        */
       private def addToQueue(nodeId: NodeId, event: WSEvent): F[Unit] =
         eventQueues(nodeId).enqueue1(event)
     }

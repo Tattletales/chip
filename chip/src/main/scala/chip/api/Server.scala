@@ -34,8 +34,6 @@ import scalatags.Text.all._
 
 import scala.concurrent.ExecutionContext
 
-//import scala.concurrent.ExecutionContext.Implicits.global
-
 trait Server[F[_]] extends Http4sDsl[F] {
   val run: Stream[F, ExitCode]
 }
