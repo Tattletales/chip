@@ -8,7 +8,7 @@ import io.circe.{Decoder, Encoder}
 import org.http4s.client.blaze.Http1Client
 import fs2.Stream
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
 package object network {
   type Uri = String Refined RefUri
@@ -17,8 +17,8 @@ package object network {
   /**
     * Creates a [[WebSocketClient]].
     */
-  def webSocketClient[F[_]: Timer: Effect, M1: Encoder, M2: Decoder](
-      route: Route): F[WebSocketClient[F, M1, M2]] =
+  def webSocketClient[F[_]: Timer: Effect, M1: Encoder, M2: Decoder](route: Route)(
+      implicit ec: ExecutionContext): F[WebSocketClient[F, M1, M2]] =
     for {
       incomingQueue <- fs2.async.unboundedQueue[F, M2]
       outgoingQueue <- fs2.async.unboundedQueue[F, M1]

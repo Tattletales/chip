@@ -20,20 +20,21 @@ import io.circe.generic.auto._
 import org.http4s.ServerSentEvent.EventId
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebsocketBits.{Text, WebSocketFrame}
+
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
 import scala.util.Random
-import scala.concurrent.ExecutionContext.Implicits.global
 
 sealed trait GossipServer[F[_], O] {
   def service: HttpService[F]
 }
 
 object GossipServer {
-  def serverSentEvent(nodes: List[String])(
-      eventQueues: Map[NodeId, Queue[IO, ServerSentEvent]],
-      eventIds: Map[NodeId, Ref[IO, Int]],
-      logs: KVStore[IO, NodeId, List[ServerSentEvent]]): GossipServer[IO, ServerSentEvent] =
+  def serverSentEvent(nodes: List[String])(eventQueues: Map[NodeId, Queue[IO, ServerSentEvent]],
+                                           eventIds: Map[NodeId, Ref[IO, Int]],
+                                           logs: KVStore[IO, NodeId, List[ServerSentEvent]])(
+      implicit ec: ExecutionContext): GossipServer[IO, ServerSentEvent] =
     new GossipServer[IO, ServerSentEvent] {
       def service: HttpService[IO] = HttpService[IO] {
         case req @ GET -> Root / "events" / nodeId =>
@@ -86,8 +87,8 @@ object GossipServer {
 
   def webSocket[F[_]](eventQueues: Map[NodeId, Queue[F, WSEvent]],
                       eventIds: Map[NodeId, Ref[F, Int]],
-                      logs: KVStore[F, NodeId, List[WSEvent]])(scheduler: Scheduler)(
-      implicit F: Effect[F]): GossipServer[F, WSEvent] =
+                      logs: KVStore[F, NodeId, List[WSEvent]])(
+      scheduler: Scheduler)(implicit F: Effect[F], ec: ExecutionContext): GossipServer[F, WSEvent] =
     new GossipServer[F, WSEvent] {
       def service: HttpService[F] = HttpService[F] {
         case GET -> Root / "gossip" / nodeId =>

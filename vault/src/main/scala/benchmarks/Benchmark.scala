@@ -13,8 +13,8 @@ import vault.events.{Deposit, TransactionStage, TransactionsHandler}
 import vault.model.{Money, User}
 import vault.model.Accounts
 
+import scala.concurrent.ExecutionContext
 import scala.util.{Random => ScalaRandom}
-import scala.concurrent.ExecutionContext.Implicits.global
 
 sealed trait Benchmark
 case object LoneSender extends Benchmark
@@ -26,7 +26,8 @@ object Benchmark {
   def apply[F[_]: Effect, E: Gossipable](benchmark: Benchmark)(users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+      daemon: GossipDaemon[F, TransactionStage, E])(
+      implicit ec: ExecutionContext): Program[F, Unit] =
     benchmark match {
       case LoneSender      => loneSender(users)(kvs, accounts, daemon)
       case Random          => random(users)(kvs, accounts, daemon)
@@ -40,7 +41,8 @@ object Benchmark {
   private def loneSender[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+      daemon: GossipDaemon[F, TransactionStage, E])(
+      implicit ec: ExecutionContext): Program[F, Unit] =
     new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval {
@@ -73,7 +75,8 @@ object Benchmark {
   private def random[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+      daemon: GossipDaemon[F, TransactionStage, E])(
+      implicit ec: ExecutionContext): Program[F, Unit] =
     new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val benchmark = for {
@@ -99,7 +102,8 @@ object Benchmark {
   private def localRoundRobin[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+      daemon: GossipDaemon[F, TransactionStage, E])(
+      implicit ec: ExecutionContext): Program[F, Unit] =
     new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval(for {
@@ -130,7 +134,8 @@ object Benchmark {
   private def roundRobin[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
-      daemon: GossipDaemon[F, TransactionStage, E]): Program[F, Unit] =
+      daemon: GossipDaemon[F, TransactionStage, E])(
+      implicit ec: ExecutionContext): Program[F, Unit] =
     new Program[F, Unit] {
       def run: Stream[F, Unit] = {
         val start = Stream.eval {

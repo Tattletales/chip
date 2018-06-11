@@ -32,17 +32,20 @@ import org.reactormonk.{CryptoBits, PrivateKey}
 import shapeless.tag
 import scalatags.Text.all._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
+
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 trait Server[F[_]] extends Http4sDsl[F] {
   val run: Stream[F, ExitCode]
 }
 
 object Server {
-  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](users: Users[F],
-                                                            tweets: Tweets[F],
-                                                            daemon: GossipDaemon[F, Event, E],
-                                                            port: Int): Server[F] =
+  def authed[F[_]: Effect: EntityEncoder[?[_], F[Json]], E](
+      users: Users[F],
+      tweets: Tweets[F],
+      daemon: GossipDaemon[F, Event, E],
+      port: Int)(implicit ec: ExecutionContext): Server[F] =
     new Server[F] {
       private val key = PrivateKey(
         scala.io.Codec.toUTF8(scala.util.Random.alphanumeric.take(20).mkString("")))
