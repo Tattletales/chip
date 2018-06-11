@@ -11,10 +11,18 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 object Utils {
+
+  /**
+    * Log each element `A` of a stream prefixed with `prefix` to stdout.
+    */
   def log[F[_], A](prefix: String)(implicit F: Sync[F]): Pipe[F, A, A] = _.evalMap { a =>
     F.delay { println(s"$prefix> $a"); a }
   }
 
+  /**
+    * Asynchronously log each element `A` of a stream prefixed with `prefix` to the file at location `path`.
+    * It appends messages to the file.
+    */
   def logToFile[F[_], A](prefix: String, path: String)(implicit F: Effect[F]): Pipe[F, A, A] = {
     implicit val e: ExecutionContext = ThreadPools.BlockingIOThreadPool
 
@@ -26,6 +34,9 @@ object Utils {
     })
   }
 
+  /**
+    * Interrupts the stream after the given `delay`.
+    */
   def interruptAfter[F[_]: Effect, A](
       delay: FiniteDuration)(implicit F: Async[F], ec: ExecutionContext): Pipe[F, A, A] = { s =>
     for {
