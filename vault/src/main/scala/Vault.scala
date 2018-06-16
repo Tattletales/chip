@@ -49,9 +49,13 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
           throw new IllegalArgumentException(s"No node id corresponding to node #$nodeNumber."))
 
       val webSocketRouteWithNodeId =
-        applyRef[Route](conf.webSocketRoute.value ++ s"/$nodeId").right.get
-      val nodeIdRouteWithNodeId = applyRef[Route](conf.nodeIdRoute.value ++ s"/$nodeId").right.get
-      val logRouteWithNodeId = applyRef[Route](conf.logRoute.value ++ s"/$nodeId").right.get
+        applyRef[Route].unsafeFrom(conf.webSocketRoute.value ++ s"/$nodeId")
+      
+      val nodeIdRouteWithNodeId =
+        applyRef[Route].unsafeFrom(conf.nodeIdRoute.value ++ s"/$nodeId")
+      
+      val logRouteWithNodeId =
+        applyRef[Route].unsafeFrom(conf.logRoute.value ++ s"/$nodeId")
 
       for {
         httpClient <- httpClient
