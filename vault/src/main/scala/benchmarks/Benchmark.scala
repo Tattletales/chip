@@ -20,7 +20,7 @@ sealed trait Benchmark
 case object LoneSender extends Benchmark
 case object Random extends Benchmark
 case object LocalRoundRobin extends Benchmark
-case object RoundRobin extends Benchmark
+case object GlobalRoundRobin extends Benchmark
 
 object Benchmark {
   def apply[F[_]: Effect, E: Gossipable](benchmark: Benchmark)(users: NonEmptyList[User])(
@@ -29,10 +29,10 @@ object Benchmark {
       daemon: GossipDaemon[F, TransactionStage, E])(
       implicit ec: ExecutionContext): Program[F, Unit] =
     benchmark match {
-      case LoneSender      => loneSender(users)(kvs, accounts, daemon)
-      case Random          => random(users)(kvs, accounts, daemon)
-      case LocalRoundRobin => localRoundRobin(users)(kvs, accounts, daemon)
-      case RoundRobin      => roundRobin(users)(kvs, accounts, daemon)
+      case LoneSender       => loneSender(users)(kvs, accounts, daemon)
+      case Random           => random(users)(kvs, accounts, daemon)
+      case LocalRoundRobin  => localRoundRobin(users)(kvs, accounts, daemon)
+      case GlobalRoundRobin => globalRoundRobin(users)(kvs, accounts, daemon)
     }
 
   /**
@@ -99,7 +99,7 @@ object Benchmark {
     * Infinitely transfer at the user after itself in the list.
     * When the transaction succeeds, transfer money to the next user, and so on...
     */
-  private def localRoundRobin[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
+  private def globalRoundRobin[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
       daemon: GossipDaemon[F, TransactionStage, E])(
@@ -113,9 +113,9 @@ object Benchmark {
         } yield ())
 
         def next(deposit: Deposit): F[Unit] = deposit match {
-          case Deposit(from, to, _, _) =>
+          case Deposit(_, to, _, _) =>
             daemon.getNodeId
-              .map(_ == from)
+              .map(_ == to)
               .ifM({
                 val toIndex = users.toList.indexOf(to)
                 accounts.transfer(users.toList((toIndex + 1) % users.size), applyRefM[Money](0.001))
@@ -131,7 +131,7 @@ object Benchmark {
   /**
     * Infinitely transfer money from one user to the other.
     */
-  private def roundRobin[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
+  private def localRoundRobin[F[_]: Effect, E: Gossipable](users: NonEmptyList[User])(
       kvs: KVStore[F, User, Money],
       accounts: Accounts[F],
       daemon: GossipDaemon[F, TransactionStage, E])(
@@ -141,7 +141,7 @@ object Benchmark {
         val start = Stream.eval {
           daemon.getNodeId
             .map(_ == users.head)
-            .ifM(accounts.transfer(users.toList(1 % users.size), applyRefM[Money](0.001)),
+            .ifM(accounts.transfer(users.toList(1), applyRefM[Money](0.001)),
                  implicitly[Effect[F]].unit)
         }
 
