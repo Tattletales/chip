@@ -50,10 +50,10 @@ class Vault[F[_]: Timer: Effect] extends StreamApp[F] {
 
       val webSocketRouteWithNodeId =
         applyRef[Route].unsafeFrom(conf.webSocketRoute.value ++ s"/$nodeId")
-      
+
       val nodeIdRouteWithNodeId =
         applyRef[Route].unsafeFrom(conf.nodeIdRoute.value ++ s"/$nodeId")
-      
+
       val logRouteWithNodeId =
         applyRef[Route].unsafeFrom(conf.logRoute.value ++ s"/$nodeId")
 

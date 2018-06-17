@@ -9,7 +9,7 @@ import backend.gossip.Node.{NodeId, NodeIdTag}
 import backend.network.{HttpClient, Route, WebSocketClient}
 import cats.arrow.Profunctor
 import cats.effect.Async.shift
-import cats.effect.{Async, Effect, Sync}
+import cats.effect.{Async, Sync}
 import cats.implicits._
 import cats.{Functor, MonadError}
 import fs2.Stream

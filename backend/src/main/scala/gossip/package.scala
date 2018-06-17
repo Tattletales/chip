@@ -8,6 +8,7 @@ import cats.effect.Effect
 import io.circe.Encoder
 
 package object gossip {
+
   /**
     * Create a [[GossipDaemon]] using the WebSocket protocol.
     */
