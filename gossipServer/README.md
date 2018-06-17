@@ -22,4 +22,4 @@ It is also possible to pass them via program arguments.
 When this is the case the configuration file is ignored.
 
 ## Running
-Use `sbt "run gossipServer [nodeA ... nodeB]"` to compile and run the module.
+Use `sbt "gossipServer/run [nodeA ... nodeB]"` to compile and run the module.

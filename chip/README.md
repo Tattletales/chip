@@ -38,7 +38,7 @@ Where `nodeOffset` is the offset of the node in the given list of nodes and `nod
 For example using `sbt run` :
 ```console
 # This will launch a node with id `alice`
-sbt "run 0 alice bob"
+sbt "chip/run 0 alice bob"
 ```
 
 > Important : for running a single node, provide some dummy value in the list of nodes and use id 0.
@@ -48,7 +48,7 @@ sbt "run 0 alice bob"
 Running the application is done the following way
 
 ```console
-sbt "run nodeId [nodeA nodeB ...]"
+sbt "chip/run nodeId [nodeA nodeB ...]"
 ```
 
 ### Frontend details
