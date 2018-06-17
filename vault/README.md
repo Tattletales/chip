@@ -22,11 +22,11 @@ vault.log-file: "vault.log"
 - `web-socket-route` The route of the WebSocket exchange.
 - `node-id-route` The route of where the identifier of the current node can be retrieved.
 - `log-route` The route where the log of the current node can be retrieved.
-- `benchmark`(optional) The name of the benchmark to run in the format `type: BenchmarkName`. Can be one of the following values :
-    - LoneSender
-    - Random
-    - LocalRoundRobin
-    - RoundRobin
+- `benchmark`(optional) The name of the benchmark to run in the format `type: benchmarkname`. Can be one of the following values :
+    - lonesender
+    - random
+    - localroundrobin
+    - roundrobin
 - `log-file` The name or path of a file to which logging information will be written.
 
 
