@@ -16,10 +16,14 @@ trait Program[F[_], A] {
     * Convert a program to a [[Stream]]
     */
   def run: Stream[F, A]
+}
+
+object Program {
 
   /**
     * Run the program for the given `duration`
     */
-  def runFor(duration: FiniteDuration)(implicit F: Effect[F], ec: ExecutionContext): Stream[F, A] =
-    run.through(interruptAfter(duration))
+  def runFor[F[_]: Effect, A](program: Program[F, A])(duration: FiniteDuration)(
+      implicit ec: ExecutionContext): Stream[F, A] =
+    program.run.through(interruptAfter(duration))
 }
