@@ -1,4 +1,5 @@
-package vault.api
+package vault
+package api
 
 import java.io.File
 
@@ -19,9 +20,9 @@ import org.http4s.server.blaze.BlazeBuilder
 import backend.programs.Program
 import shapeless.tag
 import scalatags.Text.all._
-import vault.events.TransactionStage
-import vault.model.Money
-import vault.model.Accounts
+import events.TransactionStage
+import model.Money
+import model.Accounts
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

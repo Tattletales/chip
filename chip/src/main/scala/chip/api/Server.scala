@@ -1,4 +1,5 @@
-package chip.api
+package chip
+package api
 
 import java.io.File
 import java.time._
@@ -7,16 +8,16 @@ import cats.Applicative
 import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.Effect
 import cats.implicits._
-import chip.model.Tweet.ContentTag
-import chip.model.User.UsernameTag
-import chip.implicits._
-import chip.model.{Tweets, User, Users}
+import model.Tweet.ContentTag
+import model.User.UsernameTag
+import implicits._
+import model._
 import fs2.Stream
 import fs2.StreamApp.ExitCode
 import backend.implicits._
 import backend.gossip.GossipDaemon
-import backend.gossip.Node.{NodeId, NodeIdTag}
-import chip.events.ReplicateEvents.Event
+import backend.gossip.Node._
+import events.ReplicateEvents.Event
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._

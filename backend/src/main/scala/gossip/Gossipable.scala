@@ -1,7 +1,8 @@
-package backend.gossip
+package backend
+package gossip
 
 import simulacrum._
-import backend.events.{Lsn, Payload}
+import events.{Lsn, Payload}
 
 /**
   * Typeclass for things that can be gossiped.

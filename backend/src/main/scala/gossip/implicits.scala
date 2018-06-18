@@ -1,7 +1,8 @@
-package backend.gossip
+package backend
+package gossip
 
 import doobie.util.meta.Meta
-import backend.gossip.Node.{NodeId, NodeIdTag}
+import Node._
 import cats.Functor
 import io.circe.{Decoder, Encoder}
 import org.http4s.EntityDecoder

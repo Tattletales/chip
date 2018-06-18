@@ -1,6 +1,7 @@
-package chip.model
+package chip
+package model
 
-import chip.model.User.{UserId, Username}
+import User.{UserId, Username}
 import backend.gossip.Node.NodeId
 import shapeless.tag.@@
 

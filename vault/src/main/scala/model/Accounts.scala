@@ -1,4 +1,5 @@
-package vault.model
+package vault
+package model
 
 import backend.errors.{NodeIdError, SendError}
 import backend.gossip.GossipDaemon
@@ -11,7 +12,7 @@ import eu.timepit.refined.auto._
 import fs2.Stream
 import backend.gossip.Gossipable
 import cats.data.NonEmptyList
-import vault.errors.{AccountNotFound, InsufficentFunds, TransferError, UnknownUser}
+import errors.{AccountNotFound, InsufficentFunds, TransferError, UnknownUser}
 import vault.events.Transactions.decodeAndCausalOrder
 import vault.events._
 

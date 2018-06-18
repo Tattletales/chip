@@ -1,11 +1,12 @@
-package chip.events
+package chip
+package events
 
 import backend.storage.Database
 import backend.implicits._
 import cats.effect.Effect
-import chip.events.ReplicateEvents.{Event, baseCase, inductionStep}
-import chip.model.TweetsEvents.TweetsEvent
-import chip.model.UsersEvents.UsersEvent
+import ReplicateEvents._
+import model.TweetsEvents.TweetsEvent
+import model.UsersEvents.UsersEvent
 import chip.implicits._
 import io.circe.generic.auto._
 import fs2._

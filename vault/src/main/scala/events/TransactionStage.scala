@@ -1,4 +1,5 @@
-package vault.events
+package vault
+package events
 
 import cats.{Monad, MonadError}
 import cats.effect.Effect
@@ -11,14 +12,13 @@ import io.circe.generic.auto._
 import io.circe.refined._
 import backend.implicits._
 import backend.storage.KVStore
-import vault.model.{Money, User}
 import vault.model._
 import backend.gossip.Gossipable
 import backend.gossip.Gossipable.ops._
 import eu.timepit.refined.api.RefType.applyRef
 import utils.stream.Utils
-import vault.config.VaultConfig
-import vault.errors.{InsufficentFunds, MissingLsnError, PayloadDecodingError, SenderError}
+import config.VaultConfig
+import errors._
 
 /**
   * A transaction is split into two stages: [[Withdraw]] and [[Deposit]].

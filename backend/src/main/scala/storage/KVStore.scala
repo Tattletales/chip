@@ -1,4 +1,5 @@
-package backend.storage
+package backend
+package storage
 
 import cats.Functor
 import cats.effect.Sync

@@ -1,8 +1,9 @@
-package vault.api
+package vault
+package api
 
 import backend.gossip.Node.NodeId
 import scalatags.Text.all._
-import vault.model.Money
+import model.Money
 
 object Frontend {
 

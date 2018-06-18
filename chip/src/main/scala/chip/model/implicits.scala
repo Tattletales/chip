@@ -1,8 +1,9 @@
-package chip.model
+package chip
+package model
 
 import cats.Functor
-import chip.model.Tweet.{Content, ContentTag}
-import chip.model.User.{Username, UsernameTag}
+import Tweet._
+import User._
 import doobie.util.meta.Meta
 import io.circe.{Decoder, Encoder}
 import org.http4s.EntityDecoder

@@ -1,12 +1,13 @@
-package vault.events
+package vault
+package events
 
 import backend.gossip.{GossipDaemon, Gossipable}
 import backend.storage.KVStore
 import cats.Applicative
 import cats.effect.Effect
 import backend.programs.Program
-import vault.events.Transactions.handleTransactionStages
-import vault.model.{Accounts, Money, User}
+import Transactions.handleTransactionStages
+import model.{Accounts, Money, User}
 import fs2.Stream
 
 object TransactionsHandler {

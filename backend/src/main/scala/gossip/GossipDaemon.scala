@@ -1,12 +1,13 @@
-package backend.gossip
+package backend
+package gossip
 
 import java.io._
 
-import backend.errors.{LogRetrievalError, NodeIdError}
-import backend.events._
-import backend.implicits._
-import backend.gossip.Node.{NodeId, NodeIdTag}
-import backend.network.{HttpClient, Route, WebSocketClient}
+import errors.{LogRetrievalError, NodeIdError}
+import events._
+import implicits._
+import Node._
+import network.{HttpClient, Route, WebSocketClient}
 import cats.arrow.Profunctor
 import cats.effect.Async.shift
 import cats.effect.{Async, Sync}
@@ -18,7 +19,7 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import shapeless.tag
-import threadPools.ThreadPools.{BlockingIOThreadPool, MainThreadPool}
+import utils.threadPools.ThreadPools._
 import utils.stream.Utils.log
 
 /**

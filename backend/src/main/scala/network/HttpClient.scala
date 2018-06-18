@@ -1,6 +1,7 @@
-package backend.network
+package backend
+package network
 
-import backend.errors.FailedRequestResponse
+import errors.FailedRequestResponse
 import cats.effect.Sync
 import cats.implicits._
 import io.circe.{Decoder, Encoder}

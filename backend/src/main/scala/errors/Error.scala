@@ -1,8 +1,9 @@
-package backend.errors
+package backend
+package errors
 
 import akka.http.scaladsl.model.sse.ServerSentEvent
+import backend.network.Uri
 import utils.error.Error
-import backend.network._
 
 /**
   * Daemon related errors

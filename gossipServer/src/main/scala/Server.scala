@@ -17,7 +17,7 @@ import eu.timepit.refined.auto._
 import eu.timepit.refined.pureconfig._
 import fs2.async.Ref
 import fs2.async.mutable.Queue
-import gossipServer.config.ServerConfig
+import config.ServerConfig
 import shapeless.tag
 
 import scala.concurrent.ExecutionContext.Implicits.global

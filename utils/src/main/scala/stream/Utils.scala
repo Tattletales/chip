@@ -1,4 +1,5 @@
-package utils.stream
+package utils
+package stream
 
 import java.io._
 

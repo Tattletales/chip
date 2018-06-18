@@ -1,8 +1,9 @@
-package backend.events
+package backend
+package events
 
 import cats.Monad
 import fs2.{Pipe, Pull, Stream}
-import backend.events.CausalEvent.ops._
+import CausalEvent.ops._
 
 object EventOrder {
 

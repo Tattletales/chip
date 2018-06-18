@@ -1,4 +1,5 @@
-package backend.network
+package backend
+package network
 
 import akka.{Done, NotUsed}
 import akka.actor.ActorSystem

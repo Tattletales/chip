@@ -1,4 +1,5 @@
-package backend.events
+package backend
+package events
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -8,9 +9,9 @@ import akka.http.scaladsl.settings.ConnectionPoolSettings
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.sse.scaladsl.EventSource
 import akka.stream.scaladsl.Sink
-import backend.errors.MalformedSSE
-import backend.gossip.Node.NodeIdTag
-import backend.network.Uri
+import errors.MalformedSSE
+import gossip.Node.NodeIdTag
+import network.Uri
 import cats.data.OptionT
 import cats.effect.Effect
 import cats.implicits._

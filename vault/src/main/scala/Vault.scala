@@ -12,18 +12,17 @@ import Node.NodeIdTag
 import backend.storage._
 import backend.network._
 import backend.events._
-import vault.model.{Money, User}
 import org.http4s.circe._
-import vault.events.{TransactionStage, TransactionsHandler}
+import events.{TransactionStage, TransactionsHandler}
 import backend.implicits._
-import vault.api.Server
-import vault.model._
+import api.Server
+import model._
 import cats.data.NonEmptyList
 import eu.timepit.refined.api.RefType.applyRef
 import config._
 import eu.timepit.refined.auto._
 import shapeless.tag
-import vault.benchmarks.Benchmark
+import benchmarks.Benchmark
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

@@ -1,6 +1,7 @@
-package backend.storage
+package backend
+package storage
 
-import backend.storage.Database.Column
+import Database.Column
 import cats._
 import cats.implicits._
 import doobie._

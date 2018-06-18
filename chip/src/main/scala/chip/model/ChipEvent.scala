@@ -1,8 +1,9 @@
-package chip.model
+package chip
+package model
 
 import backend.events._
-import chip.model.TweetsEvents.TweetsEvent
-import chip.model.UsersEvents.UsersEvent
+import TweetsEvents.TweetsEvent
+import UsersEvents.UsersEvent
 import io.circe.Encoder
 import io.circe.Encoder._
 import shapeless.tag

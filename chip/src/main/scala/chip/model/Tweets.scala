@@ -1,12 +1,13 @@
-package chip.model
+package chip
+package model
 
 import cats.Monad
 import cats.effect.Effect
 import cats.implicits._
-import chip.model.Tweet.Content
+import Tweet.Content
 import doobie.implicits._
-import chip.events.Replicable
-import chip.model.TweetsEvents.{AddTweet, TweetsEvent}
+import events.Replicable
+import TweetsEvents.{AddTweet, TweetsEvent}
 import backend.gossip.GossipDaemon
 import org.http4s.EntityDecoder
 import io.circe.generic.semiauto._
@@ -14,7 +15,7 @@ import io.circe.generic.auto._
 import backend.storage.Database
 import shapeless.tag
 import backend.events._
-import chip.implicits._
+import implicits._
 import backend.implicits._
 import backend.gossip.Gossipable
 import io.circe.Encoder

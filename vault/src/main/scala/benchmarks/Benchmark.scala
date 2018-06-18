@@ -1,4 +1,5 @@
-package vault.benchmarks
+package vault
+package benchmarks
 
 import backend.gossip.GossipDaemon
 import backend.storage.KVStore
@@ -9,9 +10,8 @@ import fs2._
 import backend.gossip.Gossipable
 import cats.data.NonEmptyList
 import backend.programs.Program
-import vault.events.{Deposit, TransactionStage, TransactionsHandler}
-import vault.model.{Money, User}
-import vault.model.Accounts
+import events.{Deposit, TransactionStage, TransactionsHandler}
+import model._
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Random => ScalaRandom}

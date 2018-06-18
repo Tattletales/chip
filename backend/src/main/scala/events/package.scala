@@ -1,6 +1,6 @@
 package backend
 
-import backend.gossip.Node.NodeId
+import gossip.Node.NodeId
 import cats.effect.Effect
 import io.circe.Json
 import shapeless.tag.@@

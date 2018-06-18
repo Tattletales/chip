@@ -7,7 +7,7 @@ import cats.data.NonEmptyList
 import cats.effect.Effect
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.NonNegative
-import vault.events.TransactionStage
+import events.TransactionStage
 
 package object model {
   type User = NodeId

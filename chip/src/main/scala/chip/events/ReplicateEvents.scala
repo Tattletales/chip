@@ -1,4 +1,5 @@
-package chip.events
+package chip
+package events
 
 import cats.effect.Effect
 import cats.implicits._
@@ -7,7 +8,7 @@ import io.circe.Decoder
 import shapeless.{::, HList, HNil}
 import simulacrum._
 import backend.storage.Database
-import chip.events.ReplicateEvents.Event
+import ReplicateEvents.Event
 
 /**
   * DSL for the replication of events to a [[Database]]

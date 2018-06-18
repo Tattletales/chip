@@ -1,6 +1,7 @@
-package backend.events
+package backend
+package events
 
-import backend.gossip.Gossipable
+import gossip.Gossipable
 
 /**
   * Event sent by the WebSocket protocol.

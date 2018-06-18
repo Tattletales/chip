@@ -1,4 +1,5 @@
-package backend.gossip
+package backend
+package gossip
 
 import shapeless.tag.@@
 

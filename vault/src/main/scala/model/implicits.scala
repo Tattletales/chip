@@ -1,8 +1,9 @@
-package vault.model
+package vault
+package model
 
 import backend.events._
 import shapeless.tag
-import vault.events.TransactionStage
+import events.TransactionStage
 
 trait implicits {
   implicit val eventTyper: EventTyper[TransactionStage] = new EventTyper[TransactionStage] {

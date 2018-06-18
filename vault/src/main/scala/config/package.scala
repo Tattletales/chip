@@ -5,7 +5,7 @@ import backend.network.Route
 import backend.implicits._
 import cats.data.NonEmptyList
 import pureconfig.loadConfigOrThrow
-import vault.benchmarks.Benchmark
+import benchmarks.Benchmark
 
 import eu.timepit.refined.pureconfig._
 import pureconfig._

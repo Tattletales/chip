@@ -1,5 +1,7 @@
-package chip.api
-import chip.model.Tweet
+package chip
+package api
+
+import model.Tweet
 import scalatags.Text.TypedTag
 import scalatags.Text.all._
 

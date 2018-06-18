@@ -1,9 +1,10 @@
-package vault.errors
+package vault
+package errors
 
-import vault.model.{Money, User}
+import model.{Money, User}
 import backend.events._
 import utils.error.Error
-import vault.events.Withdraw
+import events.Withdraw
 
 /**
   * Accounts related errors

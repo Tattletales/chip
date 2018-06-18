@@ -1,8 +1,8 @@
 package backend
 
-import backend.events.WSEvent
-import backend.gossip.Node.NodeId
-import backend.network.{HttpClient, Route, WebSocketClient}
+import events.WSEvent
+import gossip.Node.NodeId
+import network.{HttpClient, Route, WebSocketClient}
 import cats.MonadError
 import cats.effect.Effect
 import io.circe.Encoder

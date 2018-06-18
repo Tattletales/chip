@@ -1,4 +1,5 @@
-package backend.events
+package backend
+package events
 
 import simulacrum._
 

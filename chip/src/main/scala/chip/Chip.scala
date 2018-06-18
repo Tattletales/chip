@@ -9,11 +9,11 @@ import backend.storage._
 import cats.data.NonEmptyList
 import cats.effect.{Effect, IO, Timer}
 import cats.implicits._
-import chip.api.Server
-import chip.events.Replicator
-import chip.model.TweetsEvents.TweetsEvent._
-import chip.model.UsersEvents.UsersEvent._
-import chip.model.{Tweets, Users}
+import api.Server
+import events.Replicator
+import model.TweetsEvents.TweetsEvent._
+import model.UsersEvents.UsersEvent._
+import model.{Tweets, Users}
 import doobie.util.transactor.Transactor
 import io.circe.Json
 import io.circe.generic.auto._
