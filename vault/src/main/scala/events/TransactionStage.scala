@@ -133,23 +133,18 @@ object Transactions {
         .flatMap[F, TransactionStage, Unit] {
           case Some((e, es)) =>
             e match {
-              case d @ Deposit(from, _, depositedAmount, dependsOn) =>
-                val handleDeposit = withdrawn.get(dependsOn) match {
+              case d @ Deposit(_, _, depositedAmount, dependsOn) =>
+                withdrawn.get(dependsOn) match {
                   case Some(withdrawnAmount) =>
-                    if (depositedAmount == withdrawnAmount)
+                    if (depositedAmount == withdrawnAmount) {
                       Pull.output1(d) >> go(es, accounts, waitingFor, withdrawn - dependsOn)
-                    else
-                      go(es, accounts, waitingFor, withdrawn) // Ignore, transaction is faulty.
+                    } else {
+                      go(es, accounts, waitingFor, withdrawn)
+                    } // Ignore, transaction is faulty.
                   case None =>
                     // Wait for the related Withdrawn to be arrive.
                     go(es, accounts, waitingFor + (dependsOn -> d), withdrawn)
                 }
-
-                for {
-                  balanceOk <- Pull.eval(
-                    accounts.balance(from).map(_.value >= depositedAmount.value))
-                  _ <- if (balanceOk) handleDeposit else Pull.done
-                } yield ()
 
               case w @ Withdraw(from, _, withdrawnAmount, Some(lsn)) =>
                 val handleWithdraw = waitingFor.get(lsn) match {
@@ -212,7 +207,6 @@ object Transactions {
           balance <- accounts.balance(from)
           newBalance <- F.fromEither(applyRef[Money](balance.value - amount.value).leftMap(_ =>
             InsufficentFunds(balance, from)))
-
           updateBalance = kvs.put(from, newBalance)
           deposit = daemon.getNodeId
             .map(_ == to)
