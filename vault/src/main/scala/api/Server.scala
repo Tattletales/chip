@@ -35,36 +35,41 @@ object Server {
       private def okResp(res: String) =
         Ok(res).map(_.withContentType(`Content-Type`(`text/html`, Charset.`UTF-8`)))
 
+      private def decodeField(form: UrlForm, fieldName: String, default: String): String =
+        form.values.get(fieldName).map(_.foldRight("")(_ + _)).getOrElse(default)
+
       private val service: HttpService[F] = HttpService {
         case GET -> Root =>
           for {
             id <- daemon.getNodeId
             balance <- accounts.balance(id)
-            response <- okResp(Frontend.homePage(balance))
+            response <- okResp(Frontend.homePage(id, balance))
           } yield response
 
         case GET -> Root / "balance" =>
           for {
             id <- daemon.getNodeId
             balance <- accounts.balance(id)
-            response <- okResp(Frontend.balancePage(balance))
+            response <- okResp(Frontend.balancePage(id, balance))
           } yield response
+
+        case req @ POST -> Root / "balance" =>
+          req.decode[UrlForm] { data =>
+            val nodeId =
+              tag[NodeIdTag][String](decodeField(data, Frontend.checkBalanceForFieldId, ""))
+
+            for {
+              balance <- accounts.balance(nodeId)
+              response <- okResp(Frontend.balancePage(nodeId, balance))
+            } yield response
+          }
 
         case req @ POST -> Root / "transfer" =>
           req.decode[UrlForm] { data =>
             // TODO: Do not fail silently
-            val to = tag[NodeIdTag][String](
-              data.values
-                .get(Frontend.beneficiaryFieldId)
-                .map(_.foldRight("")(_ + _))
-                .getOrElse(""))
+            val to = tag[NodeIdTag][String](decodeField(data, Frontend.beneficiaryFieldId, ""))
             val amount = implicitly[ApplicativeError[F, Throwable]].fromEither(
-              applyRef[Money](
-                data.values
-                  .get(Frontend.amountFieldId)
-                  .map(_.foldRight("")(_ + _))
-                  .getOrElse("0.0")
-                  .toDouble)
+              applyRef[Money](decodeField(data, Frontend.amountFieldId, "0.0").toDouble)
                 .leftMap(_ => new IllegalArgumentException("Transfer amount should be positive.")))
 
             for {
@@ -72,9 +77,6 @@ object Server {
               response <- accounts.transfer(to, amount) *> okResp(Frontend.transferPage(to, amount))
             } yield response
           }
-
-        case GET -> Root / "hello" / name =>
-          Ok(s"Hello $name.").map(_.withContentType(`Content-Type`(`text/html`, Charset.`UTF-8`)))
 
         case request @ GET -> Root / "js" / file ~ "js" =>
           StaticFile

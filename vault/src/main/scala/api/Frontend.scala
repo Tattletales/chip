@@ -8,6 +8,36 @@ object Frontend {
 
   private[api] val amountFieldId = "amount-input-id"
   private[api] val beneficiaryFieldId = "beneficiary-input-id"
+  private[api] val checkBalanceForFieldId = "balance-for-node-id"
+
+  private[api] val balanceCheckoutFor = {
+    form(
+      action := "/balance",
+      method := "POST",
+      id := "account-balance-form-for-node",
+      `class` := "pure-form pure-form-aligned",
+      div(
+        `class` := "pure-control-group",
+        label(`for` := checkBalanceForFieldId, "Checkout account of "),
+        input(
+          `type` := "text",
+          `class` := "",
+          name := checkBalanceForFieldId,
+          id := checkBalanceForFieldId,
+          placeholder := "Insert node id"
+        )
+      ),
+      div(
+        `class` := "pure-controls",
+        button(
+          `type` := "submit",
+          `class` := "pure-button pure-button-primary",
+          "Check this node's balance"
+        )
+      )
+    )
+
+  }
 
   private[api] def homeForm(balance: Money) =
     div(
@@ -16,7 +46,7 @@ object Frontend {
         id := "account-container",
         `class` := "container"
       ),
-      h1(
+      h2(
         id := "account-balance",
         s"Current balance: $balance"
       ),
@@ -35,7 +65,7 @@ object Frontend {
         )
       ),
       hr,
-      h1("Issue a transfer"),
+      h2("Issue a transfer"),
       form(
         action := "/transfer",
         method := "POST",
@@ -74,7 +104,7 @@ object Frontend {
       )
     )
 
-  private[api] def homePage(balance: Money) =
+  private[api] def homePage(nodeId: NodeId, balance: Money) =
     html(
       head(
         meta(
@@ -91,20 +121,18 @@ object Frontend {
       body(
         div(
           id := "app-contents",
-          p(homeForm(balance))
-        ) /*,
-            script(
-              `type` := "text/javascript",
-              src := "js/app-jsdeps.js"
-            ),
-            script(
-              `type` := "text/javascript",
-              src := "js/app-fastopt.js"
-            )*/
+          h1(
+            style := "text-transform: capitalize;",
+            s"Hello $nodeId"
+          ),
+          p(homeForm(balance)),
+          hr,
+          p(balanceCheckoutFor)
+        )
       )
     ).render
 
-  private[api] def balancePage(balance: Money) =
+  private[api] def balancePage(nodeId: NodeId, balance: Money) =
     html(
       head(
         meta(
@@ -121,7 +149,7 @@ object Frontend {
       body(
         div(
           id := "app-contents",
-          p(s"Your current account balance is : $balance"),
+          p(s"Current account balance for $nodeId is : $balance"),
           p(a(href := "/", "Go back to home page"))
         )
       )
